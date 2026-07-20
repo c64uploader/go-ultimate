@@ -107,7 +107,7 @@ func New(host string, opts ...Option) (*Client, error) {
 		Mem: c.Machine,
 	}
 	c.Raw = &RawService{client: c}
-	c.Keyboard = &KeyboardService{client: c, Mem: c.Machine}
+	c.Keyboard = &KeyboardService{Mem: c.Machine}
 	return c, nil
 }
 

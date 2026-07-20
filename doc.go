@@ -1,10 +1,4 @@
-// Package ultimate is a Go client for the Commodore 64 Ultimate family of devices:
-// the original Ultimate cartridge, Ultimate 64, and Ultimate-II+.
-//
-// These devices add a modern interface (HTTP REST API, optional TCP socket) to a
-// Commodore 64. This package wraps that API so you can reset the machine, read and
-// write RAM, mount disk images, run programs, stream video/audio, and inspect
-// hardware state from Go code.
+// Package ultimate is a Go client for the Commodore 64 Ultimate family of devices.
 //
 // # Quick start
 //
@@ -18,23 +12,21 @@
 //
 // The Client exposes grouped services:
 //
-//   - Machine: reset, pause/resume, power, DMA memory access
-//   - Runners: load and run .PRG/.CRT files, play .SID/.MOD music
-//   - Drives: floppy drive control and disk image mounting
-//   - Configs: read and write device settings
-//   - Streams: start/stop UDP video, audio, or debug streams (Ultimate 64)
-//   - Files: file metadata and blank disk image creation on the device
-//   - Keyboard: Type (KERNAL buffer) and Press (CIA matrix chords)
-//   - Debug: decode live screen text, BASIC, VIC/CIA registers, sprites, bitmaps,
-
-//   - Raw: low-level TCP commands (port 64), including REU and KERNAL writes
+//   - Machine: Control power, reset, and read/write RAM over DMA.
+//   - Runners: Upload and run programs (.PRG, .CRT) or play music (.SID, .MOD).
+//   - Drives: Mount disk images and control emulated floppy drives.
+//   - Files: Query file metadata and create blank disk images.
+//   - Configs: Read and write device settings.
+//   - Keyboard: Inject keystrokes and text into the C64.
+//   - Streams: Multiplex video and audio streams into AVI format.
+//   - Debug: Read and decode C64 state: screen, registers, memory.
+//   - Raw: Send binary commands to the TCP port 64 socket for lower latency than the REST API.
 //
-// C64-specific data formats and decoders live in the c64 subpackage. That package
-// has no network dependency and can be used on its own.
+// C64-specific data formats and decoders live in the c64 subpackage.
 //
 // # Authentication
 //
-// Password-protected devices accept credentials via WithPassword:
+// For password-protected devices set credentials via WithPassword:
 //
 //	client, err := ultimate.New("c64u", ultimate.WithPassword("secret"))
 //

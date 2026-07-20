@@ -714,6 +714,31 @@ func TestKeyboardType(t *testing.T) {
 	}
 }
 
+func TestKeyboardPressSelectiveDDR(t *testing.T) {
+	m := newMockServer(t)
+	c := newTestClient(t, m)
+
+	// Pre-fill CIA registers: $DC00=0xFF, $DC01=0xFF, $DC02=0xFF, $DC03=0x00
+	m.setMem(0xDC00, []byte{0xFF, 0xFF, 0xFF, 0x00})
+
+	// KeySpace: Column = 0x7F, Row = 0xEF (Row 4 active bit is 0x10)
+	if err := c.Keyboard.Press(context.Background(), c64.KeySpace); err != nil {
+		t.Fatal(err)
+	}
+
+	m.mu.Lock()
+	restoredPortA := m.mem[0xDC00]
+	restoredDDRB := m.mem[0xDC03]
+	m.mu.Unlock()
+
+	if restoredPortA != 0xFF {
+		t.Fatalf("CIA port A = $%02X, want $FF restored after Press", restoredPortA)
+	}
+	if restoredDDRB != 0x00 {
+		t.Fatalf("CIA DDRB = $%02X, want $00 restored after Press", restoredDDRB)
+	}
+}
+
 func TestRawClient(t *testing.T) {
 	// Spin up a test TCP server on localhost
 	l, err := net.Listen("tcp", "127.0.0.1:0")

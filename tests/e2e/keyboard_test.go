@@ -78,3 +78,19 @@ hang:
 	}
 	t.Fatal("timeout")
 }
+
+func TestE2E_KeyboardPressAtBASICPrompt(t *testing.T) {
+	client, ctx := setupE2E(t)
+	rebootAndReady(ctx, t, client)
+
+	// Press 'A', 'B', 'C' at the BASIC READY prompt
+	for _, key := range []c64.Key{c64.KeyA, c64.KeyB, c64.KeyC} {
+		if err := client.Keyboard.Press(ctx, key); err != nil {
+			t.Fatalf("Press: %v", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	verifyScreenContains(ctx, t, client, []string{"ABC"})
+}
+

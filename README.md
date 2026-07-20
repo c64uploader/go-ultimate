@@ -13,6 +13,7 @@ go get github.com/c64uploader/go-ultimate
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/c64uploader/go-ultimate.svg)](https://pkg.go.dev/github.com/c64uploader/go-ultimate)
 
+See the Go package documentation by clicking the badge above or follow the examples below.
 
 Functionality is organized into the following client services:
 

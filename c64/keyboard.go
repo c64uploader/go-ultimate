@@ -13,12 +13,29 @@ type Key struct {
 const (
 	AddrKernalKeyBuf    = 0x0277
 	AddrKernalKeyBufLen = 0x00C6
-	KernalKeyBufMax      = 10
+	KernalKeyBufMax     = 10
 
 	AddrCIA1PortA = 0xDC00
 	AddrCIA1PortB = 0xDC01
 	AddrCIA1DDRA  = 0xDC02
 	AddrCIA1DDRB  = 0xDC03
+)
+
+// KERNAL keyboard scan internals used to steer key decode during Press.
+const (
+	AddrIRQVector    uint16 = 0x0314 // hardware IRQ vector; KernalIRQEntry when KERNAL is active
+	AddrKeylogVector uint16 = 0x028F // decode strategy vector, called by scnkey between scan and decode
+	AddrShiftFlag    uint16 = 0x028D // shflag: modifier bits 1=Shift, 2=Commodore, 4=Control
+	AddrLastKeyIndex uint16 = 0x00C5 // lstx: matrix index registered by previous scan
+	AddrMatrixIndex  uint16 = 0x00CB // sfdx: matrix index found by current scan
+
+	KernalIRQEntry = 0xEA31 // default hardware IRQ vector target
+	NoKeyIndex            = 0x40   // matrix index meaning "no key" (64)
+
+	// Modifier bits for AddrShiftFlag.
+	ShiftFlagShift     = 0x01 // left or right Shift
+	ShiftFlagCommodore = 0x02
+	ShiftFlagControl   = 0x04
 )
 
 const (
@@ -117,6 +134,21 @@ var (
 	KeyRunStop  = matrixKey(col7, row7)
 )
 
+// ModifierFlag returns the AddrShiftFlag bit for modifier keys
+// (Shift, Commodore, Control). ok is false for non-modifier keys.
+func ModifierFlag(k Key) (flag byte, ok bool) {
+	switch k {
+	case KeyLeftShift, KeyRightShift:
+		return ShiftFlagShift, true
+	case KeyCommodore:
+		return ShiftFlagCommodore, true
+	case KeyControl:
+		return ShiftFlagControl, true
+	default:
+		return 0, false
+	}
+}
+
 // CombineKeys merges matrix keys into one CIA Port A/B state for a chord.
 func CombineKeys(keys ...Key) (column, row byte) {
 	column = 0xFF
@@ -127,3 +159,48 @@ func CombineKeys(keys ...Key) (column, row byte) {
 	}
 	return column, row
 }
+
+// KeyMatrixIndex returns the zero-page matrix index (0-63) for a Key.
+func KeyMatrixIndex(k Key) byte {
+	colIdx := 0
+	switch k.Column {
+	case col0:
+		colIdx = 0
+	case col1:
+		colIdx = 1
+	case col2:
+		colIdx = 2
+	case col3:
+		colIdx = 3
+	case col4:
+		colIdx = 4
+	case col5:
+		colIdx = 5
+	case col6:
+		colIdx = 6
+	case col7:
+		colIdx = 7
+	}
+	rowIdx := 0
+	switch k.Row {
+	case row0:
+		rowIdx = 0
+	case row1:
+		rowIdx = 1
+	case row2:
+		rowIdx = 2
+	case row3:
+		rowIdx = 3
+	case row4:
+		rowIdx = 4
+	case row5:
+		rowIdx = 5
+	case row6:
+		rowIdx = 6
+	case row7:
+		rowIdx = 7
+	}
+	return byte(colIdx*8 + rowIdx)
+}
+
+
