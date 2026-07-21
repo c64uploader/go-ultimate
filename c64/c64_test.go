@@ -13,25 +13,37 @@ func TestEncodeScreen(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("EncodeScreen = %v, want %v", got, want)
 	}
-	if text := DecodeScreen(got); text != "SCREEN READ OK" {
-		t.Fatalf("roundtrip = %q, want SCREEN READ OK", text)
+	// EncodeScreen produces codes 1-26. In uppercase charset these are A-Z.
+	if text := DecodeScreen(got, CharsetUppercase); text != "SCREEN READ OK" {
+		t.Fatalf("roundtrip uppercase = %q, want SCREEN READ OK", text)
+	}
+	// In lowercase charset the same codes are a-z.
+	if text := DecodeScreen(got, CharsetLowercase); text != "screen read ok" {
+		t.Fatalf("roundtrip lowercase = %q, want screen read ok", text)
 	}
 }
 
 func TestDecodeScreen(t *testing.T) {
 	tests := []struct {
 		in   []byte
+		cs   CharsetMode
 		want string
 	}{
-		{[]byte{1, 2, 3}, "ABC"},
-		{[]byte{32, 33, 34}, " !\""},
-		{[]byte{0}, "@"},
-		{[]byte{97, 98, 99}, "ABC"}, // graphics codes shown as uppercase
-		{[]byte{91}, ":"},
+		// Codes 1-26: letters (case depends on charset)
+		{[]byte{1, 2, 3}, CharsetUppercase, "ABC"},
+		{[]byte{1, 2, 3}, CharsetLowercase, "abc"},
+		// Codes 65-90: A-Z in lowercase charset, graphics in uppercase
+		{[]byte{65, 66, 67}, CharsetLowercase, "ABC"},
+		{[]byte{65, 66, 67}, CharsetUppercase, "???"},
+		// Punctuation and digits: charset-independent
+		{[]byte{32, 33, 34}, CharsetUppercase, " !\""},
+		{[]byte{32, 33, 34}, CharsetLowercase, " !\""},
+		{[]byte{0}, CharsetUppercase, "@"},
+		{[]byte{91}, CharsetUppercase, ":"},
 	}
 	for _, tc := range tests {
-		if got := DecodeScreen(tc.in); got != tc.want {
-			t.Errorf("DecodeScreen(%v) = %q, want %q", tc.in, got, tc.want)
+		if got := DecodeScreen(tc.in, tc.cs); got != tc.want {
+			t.Errorf("DecodeScreen(%v, %d) = %q, want %q", tc.in, tc.cs, got, tc.want)
 		}
 	}
 }

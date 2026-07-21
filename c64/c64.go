@@ -127,9 +127,10 @@ func ColorName(index int) string {
 
 // Screen is decoded 25×40 text plus raw screen and color RAM bytes.
 type Screen struct {
-	Rows      []string `json:"screen"` // 25 decoded text rows
-	RawScreen []byte   `json:"-"`      // 1000 screen-code bytes
-	RawColor  []byte   `json:"-"`      // 1000 color-RAM bytes
+	Rows      []string `json:"screen"`  // 25 decoded text rows
+	RawScreen []byte   `json:"-"`       // 1000 screen-code bytes
+	RawColor  []byte   `json:"-"`       // 1000 color-RAM bytes
+	Charset   CharsetMode `json:"charset"` // active character set ($D018 bit 3)
 }
 
 // ScreenMode is the VIC-II display mode ($D011 bits 5-6, $D016 bit 4).

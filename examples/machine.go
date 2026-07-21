@@ -40,7 +40,9 @@ func main() {
 	// Write to screen memory and read it back.
 	_ = client.Machine.WriteMemory(ctx, 0x0400, c64.EncodeScreen("hello, ultimate!"))
 	mem, _ := client.Machine.ReadMemory(ctx, 0x0400, 16)
-	fmt.Println(c64.DecodeScreen(mem))
+	// EncodeScreen produces codes 1-26 for letters. After reset the C64
+	// is in uppercase charset, so these render as uppercase on screen.
+	fmt.Println(c64.DecodeScreen(mem, c64.CharsetUppercase))
 
 	// Peek/poke: read border color, then turn it green.
 	b, _ := client.Machine.Peek(ctx, 0xd020)

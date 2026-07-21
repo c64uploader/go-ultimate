@@ -47,7 +47,8 @@ func main() {
 	// Screen code encoding / decoding
 
 	fmt.Println(c64.EncodeScreen("HELLO"))
-	fmt.Println(c64.DecodeScreen([]byte{8, 5, 12, 12, 15})) // H E L L O
+	// Codes 8,5,12,12,15 = H,E,L,L,O in uppercase charset (the charset active after reset).
+	fmt.Println(c64.DecodeScreen([]byte{8, 5, 12, 12, 15}, c64.CharsetUppercase))
 
 	// Bitmap rendering
 	// Write bitmap data to C64 RAM, switch to multicolor bitmap mode.

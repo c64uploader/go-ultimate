@@ -48,11 +48,16 @@ func (d *DebugService) Screen(ctx context.Context) (*c64.Screen, error) {
 		return nil, fmt.Errorf("read screen memory $%04X: %w", screenAddr, err)
 	}
 
+	cs := c64.CharsetUppercase
+	if vicD018&0x08 != 0 {
+		cs = c64.CharsetLowercase
+	}
+
 	rows := make([]string, 25)
 	for r := range 25 {
-		rows[r] = c64.DecodeScreen(screenData[r*40 : r*40+40])
+		rows[r] = c64.DecodeScreen(screenData[r*40:r*40+40], cs)
 	}
-	return &c64.Screen{Rows: rows, RawScreen: screenData, RawColor: colorData}, nil
+	return &c64.Screen{Rows: rows, RawScreen: screenData, RawColor: colorData, Charset: cs}, nil
 }
 
 // BASIC reads tokenized program memory from $0801 and decodes it to source lines.

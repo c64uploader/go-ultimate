@@ -37,7 +37,7 @@ func TestE2E_Screen(t *testing.T) {
 
 	// Decoded rows must match the raw screen codes.
 	for i := range 25 {
-		want := c64.DecodeScreen(screen.RawScreen[i*40 : i*40+40])
+		want := c64.DecodeScreen(screen.RawScreen[i*40:i*40+40], screen.Charset)
 		if screen.Rows[i] != want {
 			t.Errorf("row %d: decoded text %q does not match raw screen codes", i, screen.Rows[i])
 		}
