@@ -34,6 +34,7 @@ The library also provides utilities for working with 6502 code, BASIC, and C64 h
 *   **[`c64.NewRAMCartridge`](examples/cartridge.go)**: Build CRT cartridge images.
 *   **[`c64.NewDiskImage`](examples/files.go)**: Build D64 or D71 disk images.
 *   **[`c64.DecodeBASICProgram`](examples/debug.go)**: Convert tokenized BASIC to source code.
+*   **[`c64.ParseT64`](c64/t64.go)**: Parse .T64 tape archive files and extract PRG entries ready for upload.
 *   **[`c64.Screen`](examples/debug.go)**: Read and decode live screen text from the C64.
 *   **[`c64.Sprite`](examples/debug.go)**: Access sprite position, color, and bitmap data, render to images.
 *   **[`c64.DecodeBitmap`](examples/debug.go)**: Render bitmap data to images.

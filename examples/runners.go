@@ -46,4 +46,10 @@ func main() {
 	// Run a .PRG or .CRT from the device filesystem:
 	// _ = client.Runners.RunPRG(ctx, "/usb0/games/demo.prg")
 	// _ = client.Runners.RunCRT(ctx, "/usb0/games/demo.crt")
+
+	// ParseT64 reads a .T64 tape archive and converts to PRGs.
+	// t64Data, _ := os.ReadFile("/path/to/file.t64")
+	// entries, _ := c64.ParseT64(t64Data)
+	// prg := entries[0].Program()
+	// _ = client.Runners.Run(ctx, prg)
 }
