@@ -8,6 +8,7 @@ import (
 	"image"
 
 	"github.com/c64uploader/go-ultimate/c64"
+	"github.com/c64uploader/go-ultimate/c64/codec"
 )
 
 // DebugService reads C64 RAM and decodes it into structured hardware views.
@@ -48,14 +49,21 @@ func (d *DebugService) Screen(ctx context.Context) (*c64.Screen, error) {
 		return nil, fmt.Errorf("read screen memory $%04X: %w", screenAddr, err)
 	}
 
-	cs := c64.CharsetUppercase
-	if vicD018&0x08 != 0 {
-		cs = c64.CharsetLowercase
+	// $D018 bits 1-3 select the character generator base address (CB).
+	// CB=2 ($1000) = uppercase/graphics, CB=3 ($1800) = lowercase/uppercase.
+	// The difference is bit 1 (0x02): clear=uppercase, set=lowercase.
+	cs := codec.CharsetUppercase
+	if vicD018&0x02 != 0 {
+		cs = codec.CharsetLowercase
 	}
 
 	rows := make([]string, 25)
+	cc := codec.ScreenUppercase
+	if cs == codec.CharsetLowercase {
+		cc = codec.ScreenLowercase
+	}
 	for r := range 25 {
-		rows[r] = c64.DecodeScreen(screenData[r*40:r*40+40], cs)
+		rows[r] = cc.DecodeString(screenData[r*40 : r*40+40])
 	}
 	return &c64.Screen{Rows: rows, RawScreen: screenData, RawColor: colorData, Charset: cs}, nil
 }

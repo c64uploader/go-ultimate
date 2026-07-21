@@ -10,6 +10,7 @@ import (
 
 	"github.com/c64uploader/go-ultimate"
 	"github.com/c64uploader/go-ultimate/c64"
+	"github.com/c64uploader/go-ultimate/c64/codec"
 )
 
 func main() {
@@ -38,11 +39,11 @@ func main() {
 	// DMA memory access
 
 	// Write to screen memory and read it back.
-	_ = client.Machine.WriteMemory(ctx, 0x0400, c64.EncodeScreen("hello, ultimate!"))
+	_ = client.Machine.WriteMemory(ctx, 0x0400, codec.ScreenUppercase.EncodeString("hello, ultimate!"))
 	mem, _ := client.Machine.ReadMemory(ctx, 0x0400, 16)
-	// EncodeScreen produces codes 1-26 for letters. After reset the C64
+	// ScreenUppercase.EncodeString produces codes 1-26 for letters. After reset the C64
 	// is in uppercase charset, so these render as uppercase on screen.
-	fmt.Println(c64.DecodeScreen(mem, c64.CharsetUppercase))
+	fmt.Println(codec.ScreenUppercase.DecodeString(mem))
 
 	// Peek/poke: read border color, then turn it green.
 	b, _ := client.Machine.Peek(ctx, 0xd020)

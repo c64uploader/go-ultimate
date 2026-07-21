@@ -420,7 +420,7 @@ func TestAssemble(t *testing.T) {
 			`,
 			want: []byte{
 				0x00, 0x10,
-				72, 5, 12, 12, 15, // H=65+7=72, e=5, l=12, l=12, o=15 (mixed: A-Z→65-90, a-z→1-26)
+				72, 5, 12, 12, 15, // H=65+7=72, e=5, l=12, l=12, o=15 (mixed: A-Z->65-90, a-z->1-26)
 			},
 		},
 		{
@@ -468,7 +468,7 @@ func TestAssemble(t *testing.T) {
 			`,
 			want: []byte{
 				0x00, 0x10,
-				0x68, 0x49, // 'H'→0x61+7=0x68, 'i'→0x41+8=0x49
+				0x68, 0x49, // 'H'->0x61+7=0x68, 'i'->0x41+8=0x49
 			},
 		},
 		{
@@ -507,7 +507,7 @@ func TestAssemble(t *testing.T) {
 				.encoding "screencode_upper"
 				.byte "a,b", 0
 			`,
-			want: []byte{0x00, 0x10, 1, 0x2C, 2, 0}, // a→1, ','→0x2C, b→2
+			want: []byte{0x00, 0x10, 1, 0x2C, 2, 0}, // a->1, ','->0x2C, b->2
 		},
 		{
 			name: "quoted string with spaces preserved in operand",
@@ -552,7 +552,7 @@ func TestAssemble(t *testing.T) {
 
 // TestAssembleDisassembleRoundtrip verifies that code assembled from source
 // disassembles back to the expected canonical mnemonics, covering the
-// assemble→disassemble path end-to-end.
+// assemble->disassemble path end-to-end.
 func TestAssembleDisassembleRoundtrip(t *testing.T) {
 	source := `
 		* = $1000
@@ -568,8 +568,8 @@ func TestAssembleDisassembleRoundtrip(t *testing.T) {
 	// $1000: LDA #$01   (2)
 	// $1002: STA $D020  (3)
 	// $1005: LDX #$05   (2)
-	// $1007: DEX         (1)  ← loop
-	// $1008: BNE loop   (2) → target $1007
+	// $1007: DEX         (1)  <- loop
+	// $1008: BNE loop   (2) -> target $1007
 	// $100A: ASL A       (1)
 	// $100B: RTS         (1)
 

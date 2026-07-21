@@ -2,13 +2,17 @@
 
 package c64
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/c64uploader/go-ultimate/c64/codec"
+)
 
 func encodeHeaderName(name string) [16]byte {
 	var out [16]byte
 	for idx := range 16 {
 		if idx < len(name) {
-			out[idx] = EncodePETSCIIUpper(name[idx])
+			out[idx] = codec.PETSCIIUpper.EncodeByte(name[idx])
 		} else {
 			out[idx] = 0xA0
 		}

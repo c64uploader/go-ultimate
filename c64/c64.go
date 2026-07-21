@@ -7,6 +7,8 @@ import (
 	"image"
 	"image/color"
 	"strings"
+
+	"github.com/c64uploader/go-ultimate/c64/codec"
 )
 
 // BASICLine is one detokenized line from a C64 BASIC program.
@@ -130,7 +132,7 @@ type Screen struct {
 	Rows      []string `json:"screen"`  // 25 decoded text rows
 	RawScreen []byte   `json:"-"`       // 1000 screen-code bytes
 	RawColor  []byte   `json:"-"`       // 1000 color-RAM bytes
-	Charset   CharsetMode `json:"charset"` // active character set ($D018 bit 3)
+	Charset   codec.CharsetMode `json:"charset"` // active character set ($D018 bit 3)
 }
 
 // ScreenMode is the VIC-II display mode ($D011 bits 5-6, $D016 bit 4).

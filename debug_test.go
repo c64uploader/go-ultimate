@@ -80,14 +80,14 @@ func TestSpriteXMSB(t *testing.T) {
 		wantX    int // expected X (low byte + MSB*256)
 		hasMSB   bool
 	}{
-		{0, 0x10 + 256, true},   // sprite 0: MSB set → X = 0x10 + 256 = 0x110
-		{1, 0x30 + 256, true},   // sprite 1: MSB set → X = 0x30 + 256 = 0x130
-		{2, 0x50, false},        // sprite 2: MSB clear → X = 0x50
+		{0, 0x10 + 256, true},   // sprite 0: MSB set -> X = 0x10 + 256 = 0x110
+		{1, 0x30 + 256, true},   // sprite 1: MSB set -> X = 0x30 + 256 = 0x130
+		{2, 0x50, false},        // sprite 2: MSB clear -> X = 0x50
 		{3, 0x70, false},        // sprite 3: MSB clear
 		{4, 0x90, false},        // sprite 4: MSB clear
 		{5, 0xB0, false},        // sprite 5: MSB clear
 		{6, 0xD0, false},        // sprite 6: MSB clear
-		{7, 0xF0 + 256, true},   // sprite 7: MSB set → X = 0xF0 + 256 = 0x1F0
+		{7, 0xF0 + 256, true},   // sprite 7: MSB set -> X = 0xF0 + 256 = 0x1F0
 	}
 
 	for _, tc := range tests {
@@ -140,7 +140,7 @@ func TestScreenMode(t *testing.T) {
 
 func TestCharset(t *testing.T) {
 	ms := newMockServer(t)
-	ms.setMem(0xD018, []byte{0b00000100})         // charset bank = 2 → address $1000
+	ms.setMem(0xD018, []byte{0b00000100})         // charset bank = 2 -> address $1000
 	ms.setMem(0x1000, make([]byte, 2048))           // 2048 bytes of dot data at $1000
 	ms.setMem(0x1001, []byte{0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00}) // checkerboard for char 0
 
@@ -179,7 +179,7 @@ func TestCharset(t *testing.T) {
 }
 
 func TestSpriteRoundtrip(t *testing.T) {
-	// Roundtrip: Raw → Image → NewSpriteFromImage → Raw
+	// Roundtrip: Raw -> Image -> NewSpriteFromImage -> Raw
 	raw := make([]byte, 64)
 	raw[0] = 0b10000000 // pixel 0 set
 

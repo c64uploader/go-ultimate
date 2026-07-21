@@ -24,7 +24,7 @@ func TestDisassemble(t *testing.T) {
 		},
 		{
 			name:      "BNE relative branch",
-			data:      []byte{0xD0, 0xFB}, // offset -5 → target = $1003+2-5 = $1000
+			data:      []byte{0xD0, 0xFB}, // offset -5 -> target = $1003+2-5 = $1000
 			startAddr: 0x1003,
 			want: []Instruction{
 				{Address: 0x1003, Bytes: []byte{0xD0, 0xFB}, Code: "BNE $1000"},
@@ -103,7 +103,7 @@ func TestDisassemble(t *testing.T) {
 		},
 		{
 			name:      "Positive relative branch forward",
-			data:      []byte{0xF0, 0x05}, // BEQ +5 → target = addr+2+5
+			data:      []byte{0xF0, 0x05}, // BEQ +5 -> target = addr+2+5
 			startAddr: 0x1000,
 			want: []Instruction{
 				{Address: 0x1000, Bytes: []byte{0xF0, 0x05}, Code: "BEQ $1007"},

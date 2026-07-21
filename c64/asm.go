@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/c64uploader/go-ultimate/c64/codec"
 )
 
 // defaultLoadAddress is the PRG load address ($0801) — start of BASIC area on a stock C64.
@@ -42,7 +44,7 @@ type parsedInst struct {
 	lineNo           int
 	sourceLine       string     // original line, for error messages
 	dataItems        []dataItem // set for .byte / .word / .text
-	dataWord         bool       // true → .word (2 bytes each)
+	dataWord         bool       // true -> .word (2 bytes each)
 	encoding         textEncoding
 	basicHeaderLabel string // for BASICHeader pseudo-directive: target label for the SYS
 }
@@ -74,9 +76,9 @@ func encodeStringByte(b byte, enc textEncoding) byte {
 			return b
 		}
 	case encPETSCIIUpper:
-		return EncodePETSCIIUpper(b)
+		return codec.PETSCIIUpper.EncodeByte(b)
 	case encPETSCIIMixed:
-		return EncodePETSCII(b)
+		return codec.PETSCII.EncodeByte(b)
 	}
 	return b
 }
@@ -91,7 +93,7 @@ func encodeStringByte(b byte, enc textEncoding) byte {
 // This causes jump to the label, allowing machine code to start with RUN.
 //
 // Text encoding (Kick Assembler compatible):
-//   - .encoding "screencode_upper" — screen codes, case folded (A-Z → 1-26)
+//   - .encoding "screencode_upper" — screen codes, case folded (A-Z -> 1-26)
 //   - .encoding "screencode_mixed" — screen codes, mixed case (default)
 //   - .encoding "petscii_upper"    — PETSCII, case folded
 //   - .encoding "petscii_mixed"    — PETSCII, mixed case
@@ -276,8 +278,8 @@ func Assemble(source string) (*Program, error) {
 			continue
 		}
 
-		// Normalize operand: collapse whitespace so "( $10 , X )" → "($10,X)",
-		// then uppercase index registers so label,x → label,X.
+		// Normalize operand: collapse whitespace so "( $10 , X )" -> "($10,X)",
+		// then uppercase index registers so label,x -> label,X.
 		operand = normalizeIndexRegisters(strings.Join(strings.Fields(operand), ""))
 
 		mode := parseAddressingMode(mnemonic, operand, labels)
@@ -709,7 +711,7 @@ func parseValue(s string) (uint16, error) {
 		return 0, fmt.Errorf("empty value")
 	}
 
-	// $ prefix → hex.
+	// $ prefix -> hex.
 	if strings.HasPrefix(s, "$") {
 		val, err := strconv.ParseUint(s[1:], 16, 16)
 		return uint16(val), err

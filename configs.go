@@ -16,7 +16,7 @@ type ConfigsService struct {
 	client *Client
 }
 
-// ConfigMap is category → setting name → current value.
+// ConfigMap is category -> setting name -> current value.
 type ConfigMap map[string]map[string]any
 
 // Get retrieves a setting value by category and item name. Returns false if not found.
@@ -39,7 +39,7 @@ type ConfigItem struct {
 	Presets []string `json:"presets,omitempty"` // Available presets
 }
 
-// ConfigItems is category → setting name → ConfigItem metadata.
+// ConfigItems is category -> setting name -> ConfigItem metadata.
 type ConfigItems map[string]map[string]*ConfigItem
 
 // Get retrieves a ConfigItem by category and item name. Returns false if not found.

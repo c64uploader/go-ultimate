@@ -12,6 +12,7 @@ import (
 
 	"github.com/c64uploader/go-ultimate"
 	"github.com/c64uploader/go-ultimate/c64"
+	"github.com/c64uploader/go-ultimate/c64/codec"
 )
 
 func main() {
@@ -46,9 +47,9 @@ func main() {
 
 	// Screen code encoding / decoding
 
-	fmt.Println(c64.EncodeScreen("HELLO"))
+	fmt.Printf("%v\n", codec.ScreenUppercase.EncodeString("HELLO"))
 	// Codes 8,5,12,12,15 = H,E,L,L,O in uppercase charset (the charset active after reset).
-	fmt.Println(c64.DecodeScreen([]byte{8, 5, 12, 12, 15}, c64.CharsetUppercase))
+	fmt.Println(codec.ScreenUppercase.DecodeString([]byte{8, 5, 12, 12, 15}))
 
 	// Bitmap rendering
 	// Write bitmap data to C64 RAM, switch to multicolor bitmap mode.

@@ -5,20 +5,22 @@ import (
 	"image/color"
 	"reflect"
 	"testing"
+
+	"github.com/c64uploader/go-ultimate/c64/codec"
 )
 
 func TestEncodeScreen(t *testing.T) {
-	got := EncodeScreen("screen read ok")
+	got := codec.ScreenUppercase.EncodeString("screen read ok")
 	want := []byte{0x13, 0x03, 0x12, 0x05, 0x05, 0x0e, 0x20, 0x12, 0x05, 0x01, 0x04, 0x20, 0x0f, 0x0b}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("EncodeScreen = %v, want %v", got, want)
+		t.Fatalf("ScreenUppercase.EncodeString = %v, want %v", got, want)
 	}
-	// EncodeScreen produces codes 1-26. In uppercase charset these are A-Z.
-	if text := DecodeScreen(got, CharsetUppercase); text != "SCREEN READ OK" {
+	// ScreenUppercase produces codes 1-26. In uppercase charset these are A-Z.
+	if text := codec.ScreenUppercase.DecodeString(got); text != "SCREEN READ OK" {
 		t.Fatalf("roundtrip uppercase = %q, want SCREEN READ OK", text)
 	}
 	// In lowercase charset the same codes are a-z.
-	if text := DecodeScreen(got, CharsetLowercase); text != "screen read ok" {
+	if text := codec.ScreenLowercase.DecodeString(got); text != "screen read ok" {
 		t.Fatalf("roundtrip lowercase = %q, want screen read ok", text)
 	}
 }
@@ -26,23 +28,27 @@ func TestEncodeScreen(t *testing.T) {
 func TestDecodeScreen(t *testing.T) {
 	tests := []struct {
 		in   []byte
-		cs   CharsetMode
+		cs   codec.CharsetMode
 		want string
 	}{
 		// Codes 1-26: letters (case depends on charset)
-		{[]byte{1, 2, 3}, CharsetUppercase, "ABC"},
-		{[]byte{1, 2, 3}, CharsetLowercase, "abc"},
+		{[]byte{1, 2, 3}, codec.CharsetUppercase, "ABC"},
+		{[]byte{1, 2, 3}, codec.CharsetLowercase, "abc"},
 		// Codes 65-90: A-Z in lowercase charset, graphics in uppercase
-		{[]byte{65, 66, 67}, CharsetLowercase, "ABC"},
-		{[]byte{65, 66, 67}, CharsetUppercase, "???"},
+		{[]byte{65, 66, 67}, codec.CharsetLowercase, "ABC"},
+		{[]byte{65, 66, 67}, codec.CharsetUppercase, "???"},
 		// Punctuation and digits: charset-independent
-		{[]byte{32, 33, 34}, CharsetUppercase, " !\""},
-		{[]byte{32, 33, 34}, CharsetLowercase, " !\""},
-		{[]byte{0}, CharsetUppercase, "@"},
-		{[]byte{91}, CharsetUppercase, ":"},
+		{[]byte{32, 33, 34}, codec.CharsetUppercase, " !\""},
+		{[]byte{32, 33, 34}, codec.CharsetLowercase, " !\""},
+		{[]byte{0}, codec.CharsetUppercase, "@"},
+		{[]byte{91}, codec.CharsetUppercase, ":"},
 	}
 	for _, tc := range tests {
-		if got := DecodeScreen(tc.in, tc.cs); got != tc.want {
+		cc := codec.ScreenUppercase
+		if tc.cs == codec.CharsetLowercase {
+			cc = codec.ScreenLowercase
+		}
+		if got := cc.DecodeString(tc.in); got != tc.want {
 			t.Errorf("DecodeScreen(%v, %d) = %q, want %q", tc.in, tc.cs, got, tc.want)
 		}
 	}
@@ -266,7 +272,7 @@ func TestSpriteMulticolorRoundtrip(t *testing.T) {
 		t.Fatalf("expected 64 bytes, got %d", len(sprite.Raw))
 	}
 
-	// bits 22-21 = 10, bits 20-19 = 11 → rowBits = 0x00B00000
+	// bits 22-21 = 10, bits 20-19 = 11 -> rowBits = 0x00B00000
 	// byte0 = 0xB0, byte1 = 0x00, byte2 = 0x00
 	if sprite.Raw[0] != 0xB0 || sprite.Raw[1] != 0x00 || sprite.Raw[2] != 0x00 {
 		t.Errorf("row 0: bytes = $%02X $%02X $%02X, want $B0 $00 $00",
@@ -382,17 +388,17 @@ func TestCharsetImageMap(t *testing.T) {
 		t.Errorf("bounds = %v, want (0,0)-(256,64)", bounds)
 	}
 
-	// Character 0, pixel (0,0) → foreground.
+	// Character 0, pixel (0,0) -> foreground.
 	if got := img.ColorIndexAt(0, 0); got != 1 {
 		t.Errorf("char 0 pixel (0,0) = %d, want 1", got)
 	}
 
-	// Character 32 at column 0, row 8 → foreground.
+	// Character 32 at column 0, row 8 -> foreground.
 	if got := img.ColorIndexAt(0, 8); got != 1 {
 		t.Errorf("char 32 pixel (0,8) = %d, want 1", got)
 	}
 
-	// Character 0, pixel (1,0) → background.
+	// Character 0, pixel (1,0) -> background.
 	if got := img.ColorIndexAt(1, 0); got != 0 {
 		t.Errorf("char 0 pixel (1,0) = %d, want 0", got)
 	}

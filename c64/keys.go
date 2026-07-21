@@ -2,6 +2,8 @@
 
 package c64
 
+import "github.com/c64uploader/go-ultimate/c64/codec"
+
 // KeysCase controls how ASCII letters map to PETSCII keystrokes.
 type KeysCase int
 
@@ -36,7 +38,7 @@ func encodeKeysByte(b byte, c KeysCase) byte {
 		return b
 	default:
 		if c == LiteralCase {
-			return EncodePETSCII(b)
+			return codec.PETSCII.EncodeByte(b)
 		}
 		return b
 	}
