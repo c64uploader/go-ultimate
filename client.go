@@ -31,7 +31,7 @@ type Client struct {
 	Files    *FilesService    // device filesystem and blank disk images
 	Debug    *DebugService    // decode live C64 hardware state from RAM
 	Raw      *RawService      // TCP command socket on port 64
-	Keyboard *KeyboardService // inject keystrokes
+	Keyboard *KeyboardService // inject strings and keystrokes (latter is best-effort)
 }
 
 // MemoryReader reads bytes from C64 memory.

@@ -20,7 +20,7 @@ func newJoyCmd() *cobra.Command {
 
 Without arguments, shows the current joystick mode.
 
-Use c64ctl press to send keys remotely:
+Use c64ctl press to send keys remotely (best-effort; requires KERNAL IRQ or standard CIA reading):
   c64ctl press W A S D Space   — simulate joystick movement + fire`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

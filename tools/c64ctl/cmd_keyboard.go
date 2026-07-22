@@ -15,7 +15,9 @@ func newTypeCmd() *cobra.Command {
 		Short: "Type text on the C64 keyboard",
 		Long: `Type ASCII text into the C64 KERNAL keyboard buffer.
 A newline is automatically appended (acts as pressing RETURN).
-Use this for BASIC commands like LOAD, RUN, SYS, POKE, etc.`,
+Use this for BASIC commands like LOAD, RUN, SYS, POKE, etc.
+
+Note: Does not work in software that reads hardware registers directly.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			text := strings.Join(args, " ")
@@ -28,9 +30,11 @@ Use this for BASIC commands like LOAD, RUN, SYS, POKE, etc.`,
 func newPressCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "press <key> [key...]",
-		Short: "Press key(s) via CIA matrix (for games/demos)",
-		Long: `Press one or more keys simultaneously via the CIA keyboard matrix.
-Use this for games that read the keyboard directly (not through KERNAL).
+		Short: "Simulate pressing key(s) via KERNAL hooks and CIA matrix",
+		Long: `Simulate pressing one or more keys simultaneously using KERNAL hooks and CIA register overrides.
+
+WARNING: Press is a best-effort feature and WILL FAIL in many games, demos, or
+programs that use custom IRQ handlers, disable interrupts, or scan CIA hardware directly.
 
 Available keys: SPACE, RETURN, RUN/STOP, F1, F3, F5, F7,
   LEFT, DOWN, UP, DELETE, HOME, SHIFT, COMMODORE, CTRL,

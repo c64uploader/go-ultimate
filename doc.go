@@ -17,7 +17,7 @@
 //   - Drives: Mount disk images and control emulated floppy drives.
 //   - Files: Query file metadata and create blank disk images.
 //   - Configs: Read and write device settings.
-//   - Keyboard: Inject keystrokes and text into the C64.
+//   - Keyboard: Inject text and keystrokes into C64 (latter is best-effort).
 //   - Streams: Multiplex video and audio streams into AVI format.
 //   - Debug: Read and decode C64 state: screen, registers, memory.
 //   - Raw: Send binary commands to the TCP port 64 socket for lower latency than the REST API.

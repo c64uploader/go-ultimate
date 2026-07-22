@@ -22,7 +22,7 @@ Functionality is organized into the following client services:
 *   **[`client.Drives`](examples/files.go)**: Mount disk images and control emulated floppy drives.
 *   **[`client.Files`](examples/files.go)**: Query file metadata and create blank disk images.
 *   **[`client.Configs`](examples/configs.go)**: Read and write device settings.
-*   **[`client.Keyboard`](examples/keyboard.go)**: Inject keystrokes and text into the C64.
+*   **[`client.Keyboard`](examples/keyboard.go)**: Inject text into the C64.
 *   **[`client.Streams`](examples/streams.go)**: Multiplex video and audio streams into AVI format.
 *   **[`client.Debug`](examples/debug.go)**: Read and decode C64 state: screen, registers, memory.
 *   **[`client.Raw`](examples/raw.go)**: Send binary commands to the TCP port 64 socket for lower latency than the REST API.

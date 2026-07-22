@@ -4,7 +4,6 @@ package ultimate
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/c64uploader/go-ultimate/c64"
@@ -19,6 +18,12 @@ const keyHoldTime = 40 * time.Millisecond
 const hookAddr = 0x0380
 
 // KeyboardService injects keystrokes into the C64.
+//
+// WARNING:
+// Keystroke injection is a best-effort software feature. Remote DMA access cannot
+// bridge physical hardware matrix pins. Injection works reliably for BASIC and
+// standard KERNAL software, but WILL FAIL in software that bypasses the KERNAL
+// or uses custom keyboard scanning logic.
 type KeyboardService struct {
 	Mem MemoryReaderWriter // memory backend; defaults to Machine
 }
@@ -37,7 +42,11 @@ func Literal() TypeOption {
 }
 
 // Type enqueues ASCII text into the KERNAL keyboard buffer ($0277).
-// Use at the BASIC READY prompt or whenever the program reads via GETIN/CHRIN.
+//
+// Use at the BASIC READY prompt or with programs reading input via KERNAL
+// routines (GETIN/CHRIN).
+//
+// WARNING: Type does NOT work in software that reads hardware registers directly.
 func (s *KeyboardService) Type(ctx context.Context, text string, opts ...TypeOption) error {
 	cfg := typeConfig{caseMode: c64.FoldCase}
 	for _, opt := range opts {
@@ -48,121 +57,95 @@ func (s *KeyboardService) Type(ctx context.Context, text string, opts ...TypeOpt
 
 // Press simulates holding one or more keyboard keys down.
 //
-// Programs read the keyboard in two ways:
+// WARNING:
+// Press is NOT reliable across all C64 software and WILL FAIL in many games, demos,
+// and programs with custom IRQ handlers or non-standard input loops.
 //
-//  1. CIA port reads
-//     Write a column mask to Port A ($DC00), read rows from Port B
-//     ($DC01). The KERNAL's scnkey routine does this every frame
-//     from the IRQ handler and decodes the result into the keyboard
-//     buffer ($0277) for CHRIN/GETIN.
+// How Press works:
+//  1. KERNAL Decode Vector Hook ($028F): Intercepts the KERNAL SCNKEY routine during
+//     IRQ scans to force the decoded matrix index ($CB).
+//  2. CIA #1 DDRB Override ($DC03): Temporarily sets Port B pins as outputs driven low
+//     for direct CIA reads.
 //
-//  2. Direct CIA reads (no KERNAL)
-//     Demos, games, and cartridge software often cannot use the
-//     KERNAL. Common reasons are:
-//       - KERNAL ROM is banked out to free up $E000-$FFFF for RAM.
-//       - Interrupts are disabled for stable raster effects, so
-//         scnkey never fires.
-//       - The program runs from cartridge in Ultimax mode, where
-//         KERNAL is not mapped.
-//     In all these cases the program must scan the CIA matrix
-//     itself by writing to Port A / reading Port B directly.
-//
-// You cannot fake a press by writing to Port B — row pins are
-// inputs. Press() uses two tricks to cover both paths:
-//
-//   - Phantom row (path 2): reconfigure row pins as outputs via
-//     DDRB ($DC03) and drive them low. The row reads active in
-//     every column.
-//
-//   - Decode hook (path 1): the KERNAL scnkey routine calls
-//     through vector $028F between its matrix scan and its decode
-//     step. Press() replaces this vector with a tiny routine that
-//     writes the correct matrix index to $CB, then jumps back.
-//     scnkey's own decode runs normally after that.
-//
-// Both tricks run at the same time, so software using either path
-// sees the key press.
+// Why Press fails in non-KERNAL software:
+//   - Disabled / Custom IRQs: If software turns off interrupts (SEI) or replaces the IRQ
+//     handler ($0314), the $028F hook never runs. Press times out waiting for the key index
+//     to register and restores CIA registers without the key being detected.
+//   - Per-frame CIA register resets: Custom input loops that reset CIA DDRB ($DC03 = $00)
+//     every frame immediately overwrite the injected key state.
+//   - Column-specific matrix scanning: Custom routines querying matrix columns individually
+//     expect row pins to go low only for specific column queries, which a static DDRB output
+//     override cannot replicate.
 func (s *KeyboardService) Press(ctx context.Context, keys ...c64.Key) error {
 	if len(keys) == 0 {
 		return nil
 	}
 
-	// ── Prepare ──────────────────────────────────────────────────────────
-
 	_, row := c64.CombineKeys(keys...)
+	idx, shift := hookKey(keys)
 
-	saved, err := s.Mem.ReadMemory(ctx, c64.AddrCIA1PortA, 4)
+	savedCIA, err := s.Mem.ReadMemory(ctx, c64.AddrCIA1PortA, 4)
 	if err != nil {
 		return err
 	}
 
-	idx, shift := hookKey(keys)
+	procPort, _ := s.Mem.ReadMemory(ctx, 0x0001, 1)
+	isKernalMapped := len(procPort) > 0 && (procPort[0]&0x07) >= 5
 
-	// ── KERNAL path: decode hook (scnkey) ───────────────────────────────
-
-	// Only install the hook if the KERNAL IRQ handler ($EA31) is still
-	// active. If a custom raster interrupt replaced $0314, scnkey is not
-	// running and the hook would do nothing.
 	var savedKeylog []byte
-	if vec, err := s.Mem.ReadMemory(ctx, c64.AddrIRQVector, 2); err == nil &&
-		vec[0] == byte(c64.KernalIRQEntry&0xFF) && vec[1] == byte(c64.KernalIRQEntry>>8) {
+
+	// ── Path 1: KERNAL SCNKEY Hook via $028F ───────────────────────────
+	if isKernalMapped {
 		keylog, err := s.Mem.ReadMemory(ctx, c64.AddrKeylogVector, 2)
 		if err == nil {
 			savedKeylog = keylog
 
-			// Trampoline at $0380 (cassette buffer). When scnkey calls
-			// $028F, this runs: set shflag + sfdx, then JMP original.
+			// Assembly Trampoline at $0380 (Cassette Buffer):
+			// 1. Force $028D (shift flags) and $CB (matrix index)
+			// 2. Jump to original $028F vector target ($EB48)
 			hook := []byte{
-				// LDA  #shift
-				0xA9, shift,
-				// STA  $028D        ; shflag = modifier bits
-				0x8D, byte(c64.AddrShiftFlag&0xFF), byte(c64.AddrShiftFlag>>8),
-				// LDA  #idx
-				0xA9, idx,
-				// STA  $CB          ; sfdx = matrix index for decode
-				0x85, byte(c64.AddrMatrixIndex&0xFF),
-				// JMP  original
-				0x4C, keylog[0], keylog[1],
-			}
-			if err := s.Mem.WriteMemory(ctx, hookAddr, hook); err != nil {
-				return err
+				0xA9, shift, // LDA #shift
+				0x8D, byte(c64.AddrShiftFlag & 0xFF), byte(c64.AddrShiftFlag >> 8), // STA $028D
+				0xA9, idx, // LDA #idx
+				0x85, byte(c64.AddrMatrixIndex & 0xFF), // STA $CB
+				0x4C, keylog[0], keylog[1], // JMP original_keylog
 			}
 
-			// Clear last key index so scnkey treats this as a fresh press.
-			_ = s.Mem.WriteMemory(ctx, c64.AddrLastKeyIndex, []byte{c64.NoKeyIndex})
+			if err := s.Mem.WriteMemory(ctx, hookAddr, hook); err == nil {
+				// Clear $C5 ($64 = No Key) to reset KERNAL debouncing.
+				// This guarantees SCNKEY sees this as a new keypress event.
+				_ = s.Mem.WriteMemory(ctx, c64.AddrLastKeyIndex, []byte{c64.NoKeyIndex})
 
-			// Redirect $028F to our trampoline.
-			err = s.Mem.WriteMemory(ctx, c64.AddrKeylogVector, []byte{byte(hookAddr & 0xFF), byte(hookAddr >> 8)})
-			if err != nil {
-				return err
+				// Redirect $028F to our trampoline
+				_ = s.Mem.WriteMemory(ctx, c64.AddrKeylogVector, []byte{byte(hookAddr & 0xFF), byte(hookAddr >> 8)})
 			}
 		}
 	}
 
-	// ── No-KERNAL path: phantom row (direct CIA reads) ──────────────────
-
-	// Reconfigure row pins as outputs (DDRB) and drive them low (Port B).
-	// Programs scanning columns see the row active in every column.
-	if err := s.Mem.WriteMemory(ctx, c64.AddrCIA1PortB, []byte{saved[1] & row}); err != nil {
-		return err
+	// ── Path 2: CIA Direct / RAM Override ──────────────────────────────
+	if len(procPort) > 0 && (procPort[0]&0x04) == 0 {
+		// I/O mapped out: CPU reads RAM at $DC01 directly
+		_ = s.Mem.WriteMemory(ctx, c64.AddrCIA1PortB, []byte{savedCIA[1] & row})
+	} else {
+		// I/O mapped in: Set DDRB bits as outputs to simulate phantom row
+		activeBits := byte(^row & 0xFF)
+		_ = s.Mem.WriteMemory(ctx, c64.AddrCIA1PortB, []byte{savedCIA[1] & row})
+		_ = s.Mem.WriteMemory(ctx, c64.AddrCIA1DDRB, []byte{savedCIA[3] | activeBits})
 	}
-	if err := s.Mem.WriteMemory(ctx, c64.AddrCIA1DDRB, []byte{saved[3] | ^row}); err != nil {
-		return err
-	}
 
-	// ── Wait ─────────────────────────────────────────────────────────────
-
+	// ── Hold & Release ──────────────────────────────────────────────────
+	// Wait at least 2 full raster frames (40ms) so SCNKEY captures the state
 	if err := s.holdUntilRegistered(ctx, idx, savedKeylog != nil); err != nil {
 		return err
 	}
 
-	// ── Release ──────────────────────────────────────────────────────────
-
-	restore := s.Mem.WriteMemory(ctx, c64.AddrCIA1PortA, saved)
+	// Restore original $028F vector & CIA registers
+	restoreCIA := s.Mem.WriteMemory(ctx, c64.AddrCIA1PortA, savedCIA)
 	if savedKeylog != nil {
-		err = s.Mem.WriteMemory(ctx, c64.AddrKeylogVector, savedKeylog)
+		_ = s.Mem.WriteMemory(ctx, c64.AddrKeylogVector, savedKeylog)
 	}
-	return errors.Join(restore, err)
+
+	return restoreCIA
 }
 
 // holdUntilRegistered blocks until the key is registered or a timeout.

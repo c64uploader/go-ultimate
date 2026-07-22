@@ -1,8 +1,8 @@
-module github.com/tsaarni/c64ctl
+module github.com/c64uploader/go-ultimate/tools/c64ctl
 
 go 1.26.4
 
-replace github.com/c64uploader/go-ultimate => /Users/tsaarni/hobby/go-ultimate
+replace github.com/c64uploader/go-ultimate => ../../
 
 require (
 	github.com/c64uploader/go-ultimate v0.0.0-20260713170414-13a427f485db
