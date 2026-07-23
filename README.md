@@ -1,7 +1,7 @@
 
 ![go-ultimate](tests/e2e/testdata/go-ultimate-logo.png)
 
-A Go module for controlling Commodore 64 Ultimate devices  over the network. It provides client libraries for the device's [REST API](https://1541u-documentation.readthedocs.io/en/latest/api/api_calls.html) and utilities for working with C64 assembly, BASIC, disk and CRT images, streams etc.
+A Go module for controlling Commodore 64 Ultimate devices over the network. It provides client libraries for the device's [REST API](https://1541u-documentation.readthedocs.io/en/latest/api/api_calls.html) and utilities for working with C64 assembly, BASIC, disk and CRT images, streams etc.
 
 ## Installation
 

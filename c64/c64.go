@@ -129,10 +129,116 @@ func ColorName(index int) string {
 
 // Screen is decoded 25×40 text plus raw screen and color RAM bytes.
 type Screen struct {
-	Rows      []string `json:"screen"`  // 25 decoded text rows
-	RawScreen []byte   `json:"-"`       // 1000 screen-code bytes
+	Rows      []string `json:"screen"`  // 25 decoded text rows (empty in bitmap modes)
+	RawScreen []byte   `json:"-"`       // 1000 screen-code bytes (or color data in bitmap modes)
 	RawColor  []byte   `json:"-"`       // 1000 color-RAM bytes
 	Charset   codec.CharsetMode `json:"charset"` // active character set ($D018 bit 3)
+	Mode      ScreenMode        `json:"mode"`    // VIC-II display mode
+}
+
+// Dump returns the 25 rows of decoded ASCII text.
+func (s *Screen) Dump() string {
+	var b strings.Builder
+	for _, row := range s.Rows {
+		b.WriteString(row)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// HexFormat controls which hex views HexDump includes.
+type HexFormat int
+
+const (
+	HexScreen HexFormat = 1 << iota // raw screen codes
+	HexPETSCII                      // PETSCII equivalents
+	HexColor                        // color RAM
+)
+
+// isBitmap returns true if the screen mode is a bitmap mode.
+func (s *Screen) isBitmap() bool {
+	return s.Mode == ScreenBitmap || s.Mode == ScreenMulticolorBitmap
+}
+
+// HexDump returns a per-row hex dump with one or two labelled lines
+// showing screen codes and/or PETSCII (controlled by which).
+// In bitmap modes, screen memory contains color data so the label
+// changes to "colors:" and PETSCII is omitted.
+// Only rows with non-space content are shown.
+// Bytes are grouped in 4-byte words separated by a space.
+func (s *Screen) HexDump(which HexFormat) string {
+	var b strings.Builder
+
+	// Header: show current mode and charset.
+	charsetName := "uppercase/graphics"
+	if s.Charset == codec.CharsetLowercase {
+		charsetName = "lowercase/uppercase"
+	}
+	fmt.Fprintf(&b, "mode: %s, charset: %s\n", s.Mode, charsetName)
+
+	isBitmap := s.isBitmap()
+
+	for r := range 25 {
+		offset := r * 40
+		raw := s.RawScreen[offset : offset+40]
+
+		// Convert screen codes -> PETSCII
+		petsciiBytes := make([]byte, 40)
+		for i, sc := range raw {
+			petsciiBytes[i] = codec.ScreenPET.DecodeByte(sc)
+		}
+
+		// Skip rows that are all zeros (bitmap) or all spaces (text)
+		allSpace := true
+		for i := 0; i < 40; i++ {
+			if isBitmap {
+				if raw[i] != 0 {
+					allSpace = false
+					break
+				}
+			} else {
+				if raw[i] != 0x20 || petsciiBytes[i] != 0x20 {
+					allSpace = false
+					break
+				}
+			}
+		}
+		if allSpace {
+			continue
+		}
+
+		// Row header
+		if isBitmap {
+			fmt.Fprintf(&b, "  row%2d\n", r)
+		} else {
+			fmt.Fprintf(&b, "  row%2d  %s\n", r, s.Rows[r])
+		}
+
+		// Helper: format 40 bytes as 4-byte grouped hex words
+		hexLine := func(label string, data []byte) {
+			b.WriteString("         ")
+			b.WriteString(label)
+			for i := 0; i < 40; i += 4 {
+				fmt.Fprintf(&b, " %02X%02X%02X%02X", data[i], data[i+1], data[i+2], data[i+3])
+			}
+			b.WriteByte('\n')
+		}
+
+		if which&HexScreen != 0 {
+			label := "screen-codes:"
+			if isBitmap {
+				label = "colors:      "
+			}
+			hexLine(label, raw)
+		}
+		if which&HexPETSCII != 0 && !isBitmap {
+			hexLine("petscii:     ", petsciiBytes) // padded to align with "screen-codes:"
+		}
+		if which&HexColor != 0 {
+			hexLine("color-ram:   ", s.RawColor[offset:offset+40])
+		}
+	}
+	return b.String()
 }
 
 // ScreenMode is the VIC-II display mode ($D011 bits 5-6, $D016 bit 4).

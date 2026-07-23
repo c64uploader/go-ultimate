@@ -24,7 +24,8 @@ func (d *DebugService) read(ctx context.Context, addr uint16, n int) ([]byte, er
 
 // Screen reads screen memory and returns 25 rows of decoded text.
 // The base address comes from the VIC-II memory-setup register and CIA2 bank select.
-// Returns an error if the VIC is not in a text mode (bitmap mode is on).
+// In bitmap modes the screen memory holds per-cell color data, not character codes;
+// in that case Rows is left empty and Mode is set to the active bitmap mode.
 func (d *DebugService) Screen(ctx context.Context) (*c64.Screen, error) {
 	// Read $D000–$DD01 in one block to get VIC registers, Color RAM, and CIA2.
 	ioData, err := d.read(ctx, 0xD000, 3330)
@@ -32,13 +33,29 @@ func (d *DebugService) Screen(ctx context.Context) (*c64.Screen, error) {
 		return nil, fmt.Errorf("read C64 I/O area $D000-$DD01: %w", err)
 	}
 
-	if ioData[0x11]&0x20 != 0 {
-		return nil, fmt.Errorf("machine is not in text mode (bitmap mode is active)")
-	}
-
+	d011 := ioData[0x11]
+	d016 := ioData[0x16]
 	vicD018 := ioData[0x18]
 	cia2DD00 := ioData[0xD00]
 	colorData := ioData[0x800 : 0x800+1000]
+
+	// Determine screen mode.
+	bmm := d011&0x20 != 0
+	ecm := d011&0x40 != 0
+	mcm := d016&0x10 != 0
+	var mode c64.ScreenMode
+	switch {
+	case ecm && !bmm:
+		mode = c64.ScreenExtendedColor
+	case bmm && !mcm:
+		mode = c64.ScreenBitmap
+	case bmm && mcm:
+		mode = c64.ScreenMulticolorBitmap
+	case !bmm && mcm:
+		mode = c64.ScreenMulticolorText
+	default:
+		mode = c64.ScreenText
+	}
 
 	bankBase := (3 - int(cia2DD00&3)) * 0x4000
 	screenOffset := int((vicD018>>4)&0x0F) * 0x0400
@@ -57,6 +74,18 @@ func (d *DebugService) Screen(ctx context.Context) (*c64.Screen, error) {
 		cs = codec.CharsetLowercase
 	}
 
+	screen := &c64.Screen{
+		RawScreen: screenData,
+		RawColor:  colorData,
+		Charset:   cs,
+		Mode:      mode,
+	}
+
+	// In bitmap modes, screen memory holds color data, not character codes.
+	if bmm {
+		return screen, nil
+	}
+
 	rows := make([]string, 25)
 	cc := codec.ScreenUppercase
 	if cs == codec.CharsetLowercase {
@@ -65,7 +94,8 @@ func (d *DebugService) Screen(ctx context.Context) (*c64.Screen, error) {
 	for r := range 25 {
 		rows[r] = cc.DecodeString(screenData[r*40 : r*40+40])
 	}
-	return &c64.Screen{Rows: rows, RawScreen: screenData, RawColor: colorData, Charset: cs}, nil
+	screen.Rows = rows
+	return screen, nil
 }
 
 // BASIC reads tokenized program memory from $0801 and decodes it to source lines.

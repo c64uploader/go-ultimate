@@ -3,73 +3,36 @@ package main
 import (
 	"context"
 	"fmt"
-	"strings"
 
-	"github.com/c64uploader/go-ultimate/c64/codec"
+	"github.com/c64uploader/go-ultimate/c64"
 	"github.com/spf13/cobra"
 )
 
 func newScreenCmd() *cobra.Command {
-	var petscii bool
+	var hex bool
 
 	cmd := &cobra.Command{
 		Use:   "screen",
-		Short: "Read the current 25x40 screen text",
+		Short: "Read the current 25×40 screen text",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
-
 			screen, err := client.Debug.Screen(ctx)
 			if err != nil {
 				return err
 			}
 
-			if petscii {
-				// Show each row as a PETSCII hex dump
-				for r := range 25 {
-					offset := r * 40
-					raw := screen.RawScreen[offset : offset+40]
-
-					// Convert screen codes -> PETSCII
-					petsciiBytes := make([]byte, 40)
-					for i, sc := range raw {
-						petsciiBytes[i] = codec.ScreenPET.DecodeByte(sc)
-					}
-
-					// Hex part
-					var hexParts []string
-					for i := 0; i < 40; i++ {
-						hexParts = append(hexParts, fmt.Sprintf("%02X", petsciiBytes[i]))
-						if i == 19 {
-							hexParts = append(hexParts, " ")
-						}
-					}
-
-					// ASCII sidebar via DecodePETSCII
-					var asc strings.Builder
-					for _, pb := range petsciiBytes {
-						ch := codec.PETSCII.DecodeByte(pb)
-						if ch >= 32 && ch < 127 {
-							asc.WriteByte(ch)
-						} else {
-							asc.WriteByte('.')
-						}
-					}
-
-					fmt.Printf("  row%2d  %s |%s|\n", r, strings.Join(hexParts, " "), asc.String())
-				}
+			if hex {
+				fmt.Print(screen.HexDump(c64.HexScreen | c64.HexPETSCII | c64.HexColor))
 				return nil
 			}
 
-			// Default: plain text rows
-			for _, row := range screen.Rows {
-				fmt.Println(row)
-			}
+			fmt.Print(screen.Dump())
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&petscii, "petscii", false, "Show screen as PETSCII hex dump")
+	cmd.Flags().BoolVar(&hex, "hex", false, "Show screen-codes: and petscii: hex dumps for non-empty rows")
 	return cmd
 }
 
