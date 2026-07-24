@@ -40,8 +40,9 @@ Environment:
   C64U_PASSWORD     Password for the device
   ASSEMBLY64_PATH   Path to assembly64 collection (default: ~/Downloads/assembly64)`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Commands that don't need C64 connection
-		if cmd.Name() == "find" || cmd.Name() == "help" || cmd.Name() == "build-cache" {
+		// Commands that don't need C64 REST connection
+		if cmd.Name() == "find" || cmd.Name() == "help" || cmd.Name() == "build-cache" ||
+			cmd.Name() == "ls" || cmd.Name() == "put" || cmd.Name() == "get" || cmd.Name() == "rm" {
 			return nil
 		}
 		var opts []ultimate.Option
@@ -105,6 +106,12 @@ func registerCommands(root *cobra.Command) {
 
 	// cmd_asm.go
 	root.AddCommand(newAsmCmd())
+
+	// cmd_ftp.go
+	root.AddCommand(newLsCmd())
+	root.AddCommand(newPutCmd())
+	root.AddCommand(newGetCmd())
+	root.AddCommand(newRmCmd())
 }
 
 func main() {
