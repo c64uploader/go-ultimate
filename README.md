@@ -39,7 +39,8 @@ The library also provides utilities for working with 6502 code, BASIC, and C64 h
 * [`c64.Sprite`](examples/debug.go): Access sprite position, color, and bitmap data, render to images.
 * [`c64.DecodeBitmap`](examples/debug.go): Render bitmap data to images.
 
-The project includes a command line tool [`c64ctl`](tools/c64ctl) for accessing `go-ultimate` capabilities. You can install it with `cd tools/c64ctl && go install` or run it directly using `go run github.com/c64uploader/go-ultimate/tools/c64ctl@latest`.
+The project includes a command line tool [`c64ctl`](tools/c64ctl) for accessing `go-ultimate` capabilities. Install it with `cd tools/c64ctl && go install` or run it directly using `go run github.com/c64uploader/go-ultimate/tools/c64ctl@latest`.
+To enable shell completion, use `source <(c64ctl completion bash)`.
 
 ## Contributing
 

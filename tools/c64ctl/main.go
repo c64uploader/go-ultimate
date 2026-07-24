@@ -42,7 +42,8 @@ Environment:
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Commands that don't need C64 REST connection
 		if cmd.Name() == "find" || cmd.Name() == "help" || cmd.Name() == "build-cache" ||
-			cmd.Name() == "ls" || cmd.Name() == "put" || cmd.Name() == "get" || cmd.Name() == "rm" {
+			cmd.Name() == "ls" || cmd.Name() == "put" || cmd.Name() == "get" || cmd.Name() == "rm" ||
+			cmd.Name() == "completion" {
 			return nil
 		}
 		var opts []ultimate.Option
@@ -92,9 +93,6 @@ func registerCommands(root *cobra.Command) {
 	root.AddCommand(newReadCmd())
 	root.AddCommand(newFillCmd())
 	root.AddCommand(newDisasmCmd())
-
-	// cmd_music.go
-	root.AddCommand(newModCmd())
 
 	// cmd_record.go
 	root.AddCommand(newRecordCmd())

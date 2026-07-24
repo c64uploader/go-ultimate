@@ -49,6 +49,9 @@ Examples:
 			}
 			return nil
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			return ftpRemotePathCompletion(toComplete)
+		},
 	}
 	cmd.Flags().BoolVarP(&lsLongFormat, "long", "l", false, "Long listing format (type, size, name)")
 	return cmd
@@ -113,7 +116,6 @@ Examples:
 
 			if len(args) > 1 {
 				lastArg := args[len(args)-1]
-				// If last arg ends with slash, or starts with slash, or didn't match local glob, treat as remote dir
 				if strings.HasSuffix(lastArg, "/") || strings.HasPrefix(lastArg, "/") {
 					remoteTargetDir = lastArg
 					localPatterns = args[:len(args)-1]
@@ -130,7 +132,6 @@ Examples:
 			for _, pat := range localPatterns {
 				matches, err := filepath.Glob(pat)
 				if err != nil || len(matches) == 0 {
-					// Fallback to exact path if not a valid glob or no match
 					if _, err := os.Stat(pat); err == nil {
 						filesToUpload = append(filesToUpload, pat)
 					} else {
@@ -168,6 +169,12 @@ Examples:
 			}
 			return nil
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if strings.HasPrefix(toComplete, "/") {
+				return ftpRemotePathCompletion(toComplete)
+			}
+			return nil, cobra.ShellCompDirectiveDefault
+		},
 	}
 }
 
@@ -200,7 +207,6 @@ Examples:
 					localDest = lastArg
 					remotePatterns = args[:len(args)-1]
 				} else if len(args) == 2 && !strings.ContainsAny(args[0], "*?") {
-					// Specific single file download with custom local output filename
 					return downloadSingleFile(client, args[0], args[1])
 				}
 			}
@@ -242,6 +248,12 @@ Examples:
 				}
 			}
 			return nil
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if strings.HasPrefix(toComplete, ".") || strings.HasPrefix(toComplete, "~") {
+				return nil, cobra.ShellCompDirectiveDefault
+			}
+			return ftpRemotePathCompletion(toComplete)
 		},
 	}
 }
@@ -319,10 +331,50 @@ Examples:
 			}
 			return nil
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			return ftpRemotePathCompletion(toComplete)
+		},
 	}
 }
 
 func matchPattern(pattern, name string) bool {
 	matched, err := path.Match(strings.ToLower(pattern), strings.ToLower(name))
 	return err == nil && matched
+}
+
+func ftpRemotePathCompletion(toComplete string) ([]string, cobra.ShellCompDirective) {
+	dir := "/"
+	prefix := toComplete
+
+	if idx := strings.LastIndex(toComplete, "/"); idx != -1 {
+		dir = toComplete[:idx+1]
+		prefix = toComplete[idx+1:]
+	}
+	if dir == "" {
+		dir = "/"
+	}
+
+	client, err := newFTPClient(c64Host)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	defer func() { _ = client.Close() }()
+
+	entries, err := client.List(dir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var completions []string
+	for _, entry := range entries {
+		if strings.HasPrefix(strings.ToLower(entry.Name), strings.ToLower(prefix)) {
+			fullPath := path.Join(dir, entry.Name)
+			if entry.IsDir {
+				fullPath += "/"
+			}
+			completions = append(completions, fullPath)
+		}
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveNoSpace
 }

@@ -24,6 +24,12 @@ Waits for loading to complete, then starts the game.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmdPlay(args[0], playWait)
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return []string{"d64", "g64", "d71", "d81"}, cobra.ShellCompDirectiveFilterFileExt
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
 	}
 	playCmd.Flags().IntVarP(&playWait, "wait", "w", 180, "Seconds to wait for loading")
 	return playCmd
@@ -45,6 +51,12 @@ Use --drive b to mount to Drive B (device 9).`,
 				drive = ultimate.DriveB
 			}
 			return mountDrive(args[0], drive)
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return []string{"d64", "g64", "d71", "d81"}, cobra.ShellCompDirectiveFilterFileExt
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
 	cmd.Flags().StringVarP(&mountDriveID, "drive", "d", "a", "Drive to mount: a or b")
@@ -115,18 +127,15 @@ func newDriveResetCmd() *cobra.Command {
 func cmdPlay(path string, waitSeconds int) error {
 	ctx := context.Background()
 
-	// Mount the disk
 	if err := mountDrive(path, ultimate.DriveA); err != nil {
 		return err
 	}
 
-	// Type LOAD command
 	fmt.Println("Loading...")
 	if err := client.Keyboard.Type(ctx, "LOAD \"*\",8,1\n"); err != nil {
 		return err
 	}
 
-	// Poll screen for READY. prompt
 	fmt.Printf("Waiting for load (max %d seconds)...\n", waitSeconds)
 	deadline := time.Now().Add(time.Duration(waitSeconds) * time.Second)
 	for time.Now().Before(deadline) {
@@ -144,7 +153,6 @@ func cmdPlay(path string, waitSeconds int) error {
 		}
 	}
 
-	// Timeout - try RUN anyway
 	fmt.Println("Timeout reached, trying RUN...")
 	return client.Keyboard.Type(ctx, "RUN\n")
 }

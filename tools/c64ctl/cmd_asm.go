@@ -69,5 +69,11 @@ and standard 6502 addressing modes. Use * = $addr to set origin
 			fmt.Printf("\n  SYS %d\n", addr)
 			return nil
 		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 0 {
+				return []string{"asm", "s", "txt"}, cobra.ShellCompDirectiveFilterFileExt
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
 	}
 }
