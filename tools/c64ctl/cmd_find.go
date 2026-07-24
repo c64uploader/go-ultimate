@@ -147,7 +147,7 @@ func cmdFind(query string, filterType string, filterFolder string, limit int) er
 		data = []byte(strings.Join(allFiles, "\n"))
 		// Build cache for next time
 		if err := os.MkdirAll(filepath.Dir(cacheFile()), 0755); err == nil {
-			os.WriteFile(cacheFile(), data, 0644)
+			_ = os.WriteFile(cacheFile(), data, 0644)
 		}
 	}
 

@@ -23,7 +23,7 @@ func newRecordCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 
 			fmt.Printf("Recording %s for %d seconds...\n", args[0], recordSeconds)
 

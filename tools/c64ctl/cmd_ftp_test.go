@@ -37,7 +37,7 @@ func newMockFTPServer(t *testing.T) *mockFTPServer {
 }
 
 func (s *mockFTPServer) Close() {
-	s.listener.Close()
+	_ = s.listener.Close()
 }
 
 func (s *mockFTPServer) serve() {
@@ -51,10 +51,10 @@ func (s *mockFTPServer) serve() {
 }
 
 func (s *mockFTPServer) handleClient(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	r := bufio.NewReader(conn)
-	fmt.Fprintf(conn, "220 Mock FTP Ready\r\n")
+	_, _ = fmt.Fprintf(conn, "220 Mock FTP Ready\r\n")
 
 	var dataListener net.Listener
 
@@ -73,16 +73,16 @@ func (s *mockFTPServer) handleClient(conn net.Conn) {
 
 		switch cmd {
 		case "USER":
-			fmt.Fprintf(conn, "331 User name okay, need password.\r\n")
+			_, _ = fmt.Fprintf(conn, "331 User name okay, need password.\r\n")
 		case "PASS":
-			fmt.Fprintf(conn, "230 User logged in, proceed.\r\n")
+			_, _ = fmt.Fprintf(conn, "230 User logged in, proceed.\r\n")
 		case "TYPE":
-			fmt.Fprintf(conn, "200 Type set to I.\r\n")
+			_, _ = fmt.Fprintf(conn, "200 Type set to I.\r\n")
 		case "PASV":
 			var err error
 			dataListener, err = net.Listen("tcp", "127.0.0.1:0")
 			if err != nil {
-				fmt.Fprintf(conn, "425 Cannot open data connection.\r\n")
+				_, _ = fmt.Fprintf(conn, "425 Cannot open data connection.\r\n")
 				continue
 			}
 			host, portStr, _ := net.SplitHostPort(dataListener.Addr().String())
@@ -90,16 +90,16 @@ func (s *mockFTPServer) handleClient(conn net.Conn) {
 			p1 := port / 256
 			p2 := port % 256
 			ipParts := strings.Split(host, ".")
-			fmt.Fprintf(conn, "227 Entering Passive Mode (%s,%s,%s,%s,%d,%d).\r\n",
+			_, _ = fmt.Fprintf(conn, "227 Entering Passive Mode (%s,%s,%s,%s,%d,%d).\r\n",
 				ipParts[0], ipParts[1], ipParts[2], ipParts[3], p1, p2)
 		case "LIST":
 			if dataListener == nil {
-				fmt.Fprintf(conn, "425 Use PASV first.\r\n")
+				_, _ = fmt.Fprintf(conn, "425 Use PASV first.\r\n")
 				continue
 			}
-			fmt.Fprintf(conn, "150 Opening ASCII mode data connection for file list.\r\n")
+			_, _ = fmt.Fprintf(conn, "150 Opening ASCII mode data connection for file list.\r\n")
 			dataConn, err := dataListener.Accept()
-			dataListener.Close()
+			_ = dataListener.Close()
 			dataListener = nil
 			if err == nil {
 				s.mu.Lock()
@@ -110,15 +110,15 @@ func (s *mockFTPServer) handleClient(conn net.Conn) {
 					if arg != "" && arg != "/" && !strings.HasPrefix(path, arg) {
 						continue
 					}
-					fmt.Fprintf(dataConn, "-rw-r--r-- 1 owner group %d Jan 1 00:00 %s\r\n", len(content), filename)
+					_, _ = fmt.Fprintf(dataConn, "-rw-r--r-- 1 owner group %d Jan 1 00:00 %s\r\n", len(content), filename)
 				}
 				s.mu.Unlock()
-				dataConn.Close()
-				fmt.Fprintf(conn, "226 Transfer complete.\r\n")
+				_ = dataConn.Close()
+				_, _ = fmt.Fprintf(conn, "226 Transfer complete.\r\n")
 			}
 		case "RETR":
 			if dataListener == nil {
-				fmt.Fprintf(conn, "425 Use PASV first.\r\n")
+				_, _ = fmt.Fprintf(conn, "425 Use PASV first.\r\n")
 				continue
 			}
 			remotePath := "/" + strings.TrimPrefix(arg, "/")
@@ -127,41 +127,41 @@ func (s *mockFTPServer) handleClient(conn net.Conn) {
 			s.mu.Unlock()
 
 			if !exists {
-				dataListener.Close()
+				_ = dataListener.Close()
 				dataListener = nil
-				fmt.Fprintf(conn, "550 File not found.\r\n")
+				_, _ = fmt.Fprintf(conn, "550 File not found.\r\n")
 				continue
 			}
 
-			fmt.Fprintf(conn, "150 Opening BINARY mode data connection.\r\n")
+			_, _ = fmt.Fprintf(conn, "150 Opening BINARY mode data connection.\r\n")
 			dataConn, err := dataListener.Accept()
-			dataListener.Close()
+			_ = dataListener.Close()
 			dataListener = nil
 			if err == nil {
-				dataConn.Write(content)
-				dataConn.Close()
-				fmt.Fprintf(conn, "226 Transfer complete.\r\n")
+				_, _ = dataConn.Write(content)
+				_ = dataConn.Close()
+				_, _ = fmt.Fprintf(conn, "226 Transfer complete.\r\n")
 			}
 		case "STOR":
 			if dataListener == nil {
-				fmt.Fprintf(conn, "425 Use PASV first.\r\n")
+				_, _ = fmt.Fprintf(conn, "425 Use PASV first.\r\n")
 				continue
 			}
-			fmt.Fprintf(conn, "150 Opening BINARY mode data connection.\r\n")
+			_, _ = fmt.Fprintf(conn, "150 Opening BINARY mode data connection.\r\n")
 			dataConn, err := dataListener.Accept()
-			dataListener.Close()
+			_ = dataListener.Close()
 			dataListener = nil
 			if err == nil {
 				buf := new(bytes.Buffer)
-				buf.ReadFrom(dataConn)
-				dataConn.Close()
+				_, _ = buf.ReadFrom(dataConn)
+				_ = dataConn.Close()
 
 				remotePath := "/" + strings.TrimPrefix(arg, "/")
 				s.mu.Lock()
 				s.files[remotePath] = buf.Bytes()
 				s.mu.Unlock()
 
-				fmt.Fprintf(conn, "226 Transfer complete.\r\n")
+				_, _ = fmt.Fprintf(conn, "226 Transfer complete.\r\n")
 			}
 		case "DELE":
 			remotePath := "/" + strings.TrimPrefix(arg, "/")
@@ -169,16 +169,16 @@ func (s *mockFTPServer) handleClient(conn net.Conn) {
 			_, exists := s.files[remotePath]
 			if exists {
 				delete(s.files, remotePath)
-				fmt.Fprintf(conn, "250 File deleted.\r\n")
+				_, _ = fmt.Fprintf(conn, "250 File deleted.\r\n")
 			} else {
-				fmt.Fprintf(conn, "550 File not found.\r\n")
+				_, _ = fmt.Fprintf(conn, "550 File not found.\r\n")
 			}
 			s.mu.Unlock()
 		case "QUIT":
-			fmt.Fprintf(conn, "221 Goodbye.\r\n")
+			_, _ = fmt.Fprintf(conn, "221 Goodbye.\r\n")
 			return
 		default:
-			fmt.Fprintf(conn, "500 Unknown command.\r\n")
+			_, _ = fmt.Fprintf(conn, "500 Unknown command.\r\n")
 		}
 	}
 }
@@ -191,7 +191,7 @@ func TestFTPClientOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newFTPClient failed: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// 1. Put
 	testData := []byte("Hello C64 FTP World!")
@@ -271,8 +271,8 @@ func TestFTPCommandsWithWildcards(t *testing.T) {
 	// Test put command with wildcard
 	localFile1 := filepath.Join(tmpDir, "upload1.d64")
 	localFile2 := filepath.Join(tmpDir, "upload2.d64")
-	os.WriteFile(localFile1, []byte("up1"), 0644)
-	os.WriteFile(localFile2, []byte("up2"), 0644)
+	_ = os.WriteFile(localFile1, []byte("up1"), 0644)
+	_ = os.WriteFile(localFile2, []byte("up2"), 0644)
 
 	putCmd := newPutCmd()
 	if err := putCmd.RunE(putCmd, []string{filepath.Join(tmpDir, "*.d64"), "/"}); err != nil {

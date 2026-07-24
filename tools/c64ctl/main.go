@@ -123,13 +123,7 @@ func main() {
 	}
 }
 
-func printNotConnected() {
-	fmt.Println("Not connected to C64 Ultimate")
-}
-
-// ---------------------------------------------------------------------------
-//  read command — hex dump from C64 RAM
-// ---------------------------------------------------------------------------
+// read command — hex dump from C64 RAM
 
 func newReadCmd() *cobra.Command {
 	return &cobra.Command{
@@ -184,9 +178,7 @@ Examples:
 	}
 }
 
-// ---------------------------------------------------------------------------
-//  fill command — fill a range of C64 RAM with a byte value
-// ---------------------------------------------------------------------------
+// fill command — fill a range of C64 RAM with a byte value
 
 func newFillCmd() *cobra.Command {
 	return &cobra.Command{
@@ -221,9 +213,7 @@ Examples:
 	}
 }
 
-// ---------------------------------------------------------------------------
-//  disasm command — read RAM and disassemble 6502
-// ---------------------------------------------------------------------------
+// disasm command — read RAM and disassemble 6502
 
 func newDisasmCmd() *cobra.Command {
 	return &cobra.Command{

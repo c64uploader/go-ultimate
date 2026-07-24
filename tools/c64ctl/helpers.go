@@ -40,7 +40,7 @@ func parseHex16(s string) uint16 {
 	s = strings.TrimPrefix(strings.ToUpper(s), "$")
 	s = strings.TrimPrefix(s, "0X")
 	var v uint16
-	fmt.Sscanf(s, "%X", &v)
+	_, _ = fmt.Sscanf(s, "%X", &v)
 	return v
 }
 
@@ -48,7 +48,7 @@ func parseHex8(s string) byte {
 	s = strings.TrimPrefix(strings.ToUpper(s), "$")
 	s = strings.TrimPrefix(s, "0X")
 	var v byte
-	fmt.Sscanf(s, "%X", &v)
+	_, _ = fmt.Sscanf(s, "%X", &v)
 	return v
 }
 

@@ -49,11 +49,11 @@ func newFTPClient(host string) (*FTPClient, error) {
 	// Read initial greeting (220)
 	code, msg, err := client.readResponse()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("ftp greeting: %w", err)
 	}
 	if code != 220 {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("unexpected ftp greeting (%d): %s", code, msg)
 	}
 
@@ -69,18 +69,18 @@ func newFTPClient(host string) (*FTPClient, error) {
 
 	code, msg, err = client.cmd("USER %s", user)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("ftp USER: %w", err)
 	}
 	if code == 331 {
 		code, msg, err = client.cmd("PASS %s", pwd)
 		if err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, fmt.Errorf("ftp PASS: %w", err)
 		}
 	}
 	if code != 230 && code != 200 {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("ftp login failed (%d): %s", code, msg)
 	}
 
@@ -177,7 +177,7 @@ func (c *FTPClient) List(dirPath string) ([]FTPEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer dataConn.Close()
+	defer func() { _ = dataConn.Close() }()
 
 	cmdStr := "LIST"
 	if dirPath != "" && dirPath != "." {
@@ -224,7 +224,7 @@ func (c *FTPClient) Get(remotePath string, target io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer dataConn.Close()
+	defer func() { _ = dataConn.Close() }()
 
 	code, msg, err := c.cmd("RETR %s", remotePath)
 	if err != nil {
@@ -257,7 +257,7 @@ func (c *FTPClient) Put(remotePath string, src io.Reader) error {
 	if err != nil {
 		return err
 	}
-	defer dataConn.Close()
+	defer func() { _ = dataConn.Close() }()
 
 	code, msg, err := c.cmd("STOR %s", remotePath)
 	if err != nil {

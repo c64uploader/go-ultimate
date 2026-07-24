@@ -30,7 +30,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			if len(args) == 0 {
 				args = []string{"/"}
@@ -106,7 +106,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			remoteTargetDir := "/"
 			localPatterns := args
@@ -160,10 +160,10 @@ Examples:
 
 				remotePath := path.Join(remoteTargetDir, filepath.Base(localPath))
 				if err := client.Put(remotePath, f); err != nil {
-					f.Close()
+					_ = f.Close()
 					return fmt.Errorf("upload %s to %s: %w", localPath, remotePath, err)
 				}
-				f.Close()
+				_ = f.Close()
 				fmt.Printf("✓ Uploaded %s -> %s (%d bytes)\n", localPath, remotePath, size)
 			}
 			return nil
@@ -188,7 +188,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			localDest := "."
 			remotePatterns := args
@@ -251,10 +251,10 @@ func downloadSingleFile(client *FTPClient, remoteFile, localFile string) error {
 	if err != nil {
 		return fmt.Errorf("create local file %s: %w", localFile, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := client.Get(remoteFile, f); err != nil {
-		os.Remove(localFile)
+		_ = os.Remove(localFile)
 		return fmt.Errorf("download %s to %s: %w", remoteFile, localFile, err)
 	}
 	fi, _ := f.Stat()
@@ -283,7 +283,7 @@ Examples:
 			if err != nil {
 				return err
 			}
-			defer client.Close()
+			defer func() { _ = client.Close() }()
 
 			for _, pattern := range args {
 				if strings.ContainsAny(pattern, "*?") {
