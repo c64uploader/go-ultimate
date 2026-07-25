@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/c64uploader/go-ultimate"
 	"github.com/spf13/cobra"
@@ -113,7 +112,7 @@ func newDriveResetCmd() *cobra.Command {
 	}
 }
 
-func cmdPlay(ctx context.Context, path string, waitSeconds int) error {
+func cmdPlay(ctx context.Context, path string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -122,36 +121,8 @@ func cmdPlay(ctx context.Context, path string, waitSeconds int) error {
 		return err
 	}
 
+	// Type LOAD and RUN together. BASIC processes the keyboard buffer after
+	// LOAD finishes, so RUN executes automatically once the disk is done.
 	fmt.Println("Loading...")
-	if err := client.Keyboard.Type(ctx, "LOAD \"*\",8,1\n"); err != nil {
-		return err
-	}
-
-	fmt.Printf("Waiting for load (max %d seconds)...\n", waitSeconds)
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	timeout := time.After(time.Duration(waitSeconds) * time.Second)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeout:
-			fmt.Println("Timeout reached, trying RUN...")
-			return client.Keyboard.Type(ctx, "RUN\n")
-		case <-ticker.C:
-			screen, err := client.Debug.Screen(ctx)
-			if err != nil {
-				continue
-			}
-			for _, row := range screen.Rows {
-				if strings.Contains(row, "READY.") {
-					fmt.Println("Load complete!")
-					fmt.Println("Starting game...")
-					return client.Keyboard.Type(ctx, "RUN\n")
-				}
-			}
-		}
-	}
+	return client.Keyboard.Type(ctx, "LOAD \"*\",8,1\nRUN\n")
 }
