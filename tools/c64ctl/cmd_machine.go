@@ -61,7 +61,10 @@ func newPeekCmd() *cobra.Command {
 		Long:  "Read a single byte from C64 RAM. Address in hex (e.g., D020 for border color).",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			addr := parseHex16(args[0])
+			addr, err := parseHex16(args[0])
+			if err != nil {
+				return err
+			}
 			val, err := client.Machine.Peek(context.Background(), addr)
 			if err != nil {
 				return err
@@ -79,8 +82,14 @@ func newPokeCmd() *cobra.Command {
 		Long:  "Write a single byte to C64 RAM. Both address and value in hex.",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			addr := parseHex16(args[0])
-			val := parseHex8(args[1])
+			addr, err := parseHex16(args[0])
+			if err != nil {
+				return err
+			}
+			val, err := parseHex8(args[1])
+			if err != nil {
+				return err
+			}
 			return client.Machine.Poke(context.Background(), addr, val)
 		},
 	}

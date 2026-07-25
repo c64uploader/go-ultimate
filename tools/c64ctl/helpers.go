@@ -6,7 +6,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/c64uploader/go-ultimate"
 	"github.com/c64uploader/go-ultimate/c64"
@@ -36,24 +38,29 @@ func mountDrive(path string, drive ultimate.DriveID) error {
 	})
 }
 
-func parseHex16(s string) uint16 {
+func parseHex16(s string) (uint16, error) {
 	s = strings.TrimPrefix(strings.ToUpper(s), "$")
 	s = strings.TrimPrefix(s, "0X")
-	var v uint16
-	_, _ = fmt.Sscanf(s, "%X", &v)
-	return v
+	v, err := strconv.ParseUint(s, 16, 16)
+	if err != nil {
+		return 0, fmt.Errorf("invalid hex address %q: %w", s, err)
+	}
+	return uint16(v), nil
 }
 
-func parseHex8(s string) byte {
+func parseHex8(s string) (byte, error) {
 	s = strings.TrimPrefix(strings.ToUpper(s), "$")
 	s = strings.TrimPrefix(s, "0X")
-	var v byte
-	_, _ = fmt.Sscanf(s, "%X", &v)
-	return v
+	v, err := strconv.ParseUint(s, 16, 8)
+	if err != nil {
+		return 0, fmt.Errorf("invalid hex byte %q: %w", s, err)
+	}
+	return byte(v), nil
 }
 
 func parseKey(name string) (c64.Key, bool) {
-	switch strings.ToUpper(name) {
+	name = strings.ToUpper(name)
+	switch name {
 	case "SPACE":
 		return c64.KeySpace, true
 	case "RETURN", "ENTER":
@@ -121,7 +128,26 @@ func envOrDefault(key, defaultVal string) string {
 	return defaultVal
 }
 
-func getLocalIP() string {
+func getLocalIP(targetHost ...string) string {
+	host := "c64u"
+	if len(targetHost) > 0 && targetHost[0] != "" {
+		host = targetHost[0]
+	} else if c64Host != "" {
+		host = c64Host
+	}
+
+	if !strings.Contains(host, ":") {
+		host = net.JoinHostPort(host, "80")
+	}
+
+	conn, err := net.DialTimeout("udp", host, 2*time.Second)
+	if err == nil {
+		defer func() { _ = conn.Close() }()
+		if localAddr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+			return localAddr.IP.String()
+		}
+	}
+
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return "127.0.0.1"

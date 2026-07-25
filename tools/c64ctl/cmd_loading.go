@@ -1,3 +1,13 @@
+// Loading and execution subcommands for c64ctl.
+//
+// Convenience Features:
+// 1. Unified Multi-Format Media Execution (c64ctl run):
+//    Auto-detects file format by extension (.prg, .crt, .d64, .d71, .d81, .g64, .t64, .sid, .mod)
+//    and routes execution directly to the appropriate device runner or disk mounter.
+// 2. Automated Disk Mount & Boot:
+//    For disk images (.d64, .d71, .d81, .g64), automatically mounts the disk image into Drive A,
+//    types LOAD "*",8,1 into the KERNAL keyboard buffer, polls screen memory for READY., and types RUN.
+
 package main
 
 import (
@@ -14,14 +24,16 @@ import (
 func newRunCmd() *cobra.Command {
 	var entryNum int
 	var songNum int
+	var playWait int
 
 	cmd := &cobra.Command{
-		Use:   "run <file> [--entry N] [--song N]",
-		Short: "Upload and run a PRG, T64, SID, or MOD file",
+		Use:   "run <file> [--entry N] [--song N] [--wait N]",
+		Short: "Upload and run a PRG, CRT, D64, T64, SID, or MOD file",
 		Long: `Upload a file to C64 memory and start execution.
-Supports .PRG, .T64, .SID, and .MOD file formats.
+Supports .PRG, .CRT, .D64/.D71/.D81/.G64, .T64, .SID, and .MOD file formats.
 
-Resets the C64, uploads the binary, and jumps to the load address.
+Resets the C64, uploads the binary, and jumps to the load address (or loads the CRT cartridge).
+For disk images (.D64, .D71, .D81, .G64), mounts the image and automatically types LOAD "*",8,1 and RUN.
 
 For T64 tape archives, the first entry is run by default.
 Use --entry to select a different entry.
@@ -35,9 +47,18 @@ Use a .T64 file instead (a tape archive that c64ctl run can handle).`,
 			path := args[0]
 			ext := strings.ToLower(filepath.Ext(path))
 
+			if ext == ".d64" || ext == ".d71" || ext == ".d81" || ext == ".g64" {
+				return cmdPlay(cmd.Context(), path, playWait)
+			}
+
 			data, err := os.ReadFile(path)
 			if err != nil {
 				return err
+			}
+
+			if ext == ".crt" {
+				fmt.Printf("Loading CRT %s (%d bytes)...\n", filepath.Base(path), len(data))
+				return client.Runners.RunCRTBytes(context.Background(), data)
 			}
 
 			if ext == ".t64" {
@@ -79,7 +100,7 @@ Use a .T64 file instead (a tape archive that c64ctl run can handle).`,
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) == 0 {
-				return []string{"prg", "t64", "sid", "mod"}, cobra.ShellCompDirectiveFilterFileExt
+				return []string{"prg", "crt", "d64", "g64", "d71", "d81", "t64", "sid", "mod"}, cobra.ShellCompDirectiveFilterFileExt
 			}
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
@@ -87,58 +108,7 @@ Use a .T64 file instead (a tape archive that c64ctl run can handle).`,
 
 	cmd.Flags().IntVarP(&entryNum, "entry", "e", 0, "T64 entry index to run")
 	cmd.Flags().IntVarP(&songNum, "song", "s", 0, "SID sub-tune index")
+	cmd.Flags().IntVarP(&playWait, "wait", "w", 180, "Seconds to wait for disk loading")
 	return cmd
 }
 
-func newCrtCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "crt <file.crt>",
-		Short: "Run a CRT cartridge file",
-		Long: `Upload and run a .CRT cartridge image.
-Cartridges load instantly and bypass disk loading entirely.
-Supports standard, ocean, easyflash, and other CRT formats.`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := os.ReadFile(args[0])
-			if err != nil {
-				return err
-			}
-			fmt.Printf("Loading CRT %s (%d bytes)...\n", filepath.Base(args[0]), len(data))
-			return client.Runners.RunCRTBytes(context.Background(), data)
-		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) == 0 {
-				return []string{"crt"}, cobra.ShellCompDirectiveFilterFileExt
-			}
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		},
-	}
-}
-
-func newLoadCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "load <file.prg>",
-		Short: "Upload PRG without running (for multi-part loaders)",
-		Long: `Upload a .PRG file into C64 memory without starting it.
-Use this for multi-file games where you load part 1, then part 2, then RUN.`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := os.ReadFile(args[0])
-			if err != nil {
-				return err
-			}
-			fmt.Printf("Loading %s (%d bytes)...\n", filepath.Base(args[0]), len(data))
-			if err := client.Runners.LoadPRGBytes(context.Background(), data); err != nil {
-				return err
-			}
-			fmt.Println("Loaded. Use 'c64ctl type RUN' to start.")
-			return nil
-		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) == 0 {
-				return []string{"prg"}, cobra.ShellCompDirectiveFilterFileExt
-			}
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		},
-	}
-}

@@ -10,29 +10,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var playWait int
 var mountDriveID string
 var unmountDriveID string
 
-func newPlayCmd() *cobra.Command {
-	playCmd := &cobra.Command{
-		Use:   "play <file.d64>",
-		Short: "Mount disk, load, and run automatically",
-		Long: `Mount a D64/D71/D81/TAP and automatically type LOAD/RUN.
-Waits for loading to complete, then starts the game.`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmdPlay(args[0], playWait)
-		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) == 0 {
-				return []string{"d64", "g64", "d71", "d81"}, cobra.ShellCompDirectiveFilterFileExt
-			}
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		},
+func parseDriveID(s string) (ultimate.DriveID, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "a", "8", "drive a", "drivea", "0":
+		return ultimate.DriveA, nil
+	case "b", "9", "drive b", "driveb", "1":
+		return ultimate.DriveB, nil
+	default:
+		return ultimate.DriveA, fmt.Errorf("invalid drive %q (use 'a' or 'b')", s)
 	}
-	playCmd.Flags().IntVarP(&playWait, "wait", "w", 180, "Seconds to wait for loading")
-	return playCmd
 }
 
 func newMountCmd() *cobra.Command {
@@ -46,9 +35,9 @@ After mounting, use 'c64ctl type LOAD "*",8,1' to load from the disk.
 Use --drive b to mount to Drive B (device 9).`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			drive := ultimate.DriveA
-			if mountDriveID == "b" {
-				drive = ultimate.DriveB
+			drive, err := parseDriveID(mountDriveID)
+			if err != nil {
+				return err
 			}
 			return mountDrive(args[0], drive)
 		},
@@ -70,9 +59,9 @@ func newUnmountCmd() *cobra.Command {
 		Long: `Unmount a disk drive. Use --drive b to unmount Drive B (device 9).`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			drive := ultimate.DriveA
-			if unmountDriveID == "b" {
-				drive = ultimate.DriveB
+			drive, err := parseDriveID(unmountDriveID)
+			if err != nil {
+				return err
 			}
 			return client.Drives.Unmount(context.Background(), drive)
 		},
@@ -124,8 +113,10 @@ func newDriveResetCmd() *cobra.Command {
 	}
 }
 
-func cmdPlay(path string, waitSeconds int) error {
-	ctx := context.Background()
+func cmdPlay(ctx context.Context, path string, waitSeconds int) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	if err := mountDrive(path, ultimate.DriveA); err != nil {
 		return err
@@ -137,22 +128,30 @@ func cmdPlay(path string, waitSeconds int) error {
 	}
 
 	fmt.Printf("Waiting for load (max %d seconds)...\n", waitSeconds)
-	deadline := time.Now().Add(time.Duration(waitSeconds) * time.Second)
-	for time.Now().Before(deadline) {
-		time.Sleep(2 * time.Second)
-		screen, err := client.Debug.Screen(ctx)
-		if err != nil {
-			continue
-		}
-		for _, row := range screen.Rows {
-			if strings.Contains(row, "READY.") {
-				fmt.Println("Load complete!")
-				fmt.Println("Starting game...")
-				return client.Keyboard.Type(ctx, "RUN\n")
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	timeout := time.After(time.Duration(waitSeconds) * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			fmt.Println("Timeout reached, trying RUN...")
+			return client.Keyboard.Type(ctx, "RUN\n")
+		case <-ticker.C:
+			screen, err := client.Debug.Screen(ctx)
+			if err != nil {
+				continue
+			}
+			for _, row := range screen.Rows {
+				if strings.Contains(row, "READY.") {
+					fmt.Println("Load complete!")
+					fmt.Println("Starting game...")
+					return client.Keyboard.Type(ctx, "RUN\n")
+				}
 			}
 		}
 	}
-
-	fmt.Println("Timeout reached, trying RUN...")
-	return client.Keyboard.Type(ctx, "RUN\n")
 }

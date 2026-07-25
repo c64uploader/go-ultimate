@@ -30,10 +30,10 @@ Note: Does not work in software that reads hardware registers directly.`,
 func newPressCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "press <key> [key...]",
-		Short: "Simulate pressing key(s) via KERNAL hooks and CIA matrix",
+		Short: "Simulate pressing key(s) (note: buggy and unreliable in games)",
 		Long: `Simulate pressing one or more keys simultaneously using KERNAL hooks and CIA register overrides.
 
-WARNING: Press is a best-effort feature and WILL FAIL in many games, demos, or
+WARNING: Press is buggy and unreliable. It WILL FAIL in many games, demos, or
 programs that use custom IRQ handlers, disable interrupts, or scan CIA hardware directly.
 
 Available keys: SPACE, RETURN, RUN/STOP, F1, F3, F5, F7,

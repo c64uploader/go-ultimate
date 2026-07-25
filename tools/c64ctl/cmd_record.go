@@ -50,7 +50,7 @@ Examples:
 			}
 
 			session, err := client.Streams.AVISession(context.Background(), ultimate.AVISessionOptions{
-				HostIP:    getLocalIP(),
+				HostIP:    getLocalIP(c64Host),
 				VideoPort: 11000,
 				AudioPort: 11001,
 				Writer:    w,

@@ -1,3 +1,5 @@
+// CLI subcommands for searching local file collections (c64ctl find / build-cache).
+
 package main
 
 import (
@@ -7,15 +9,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/c64uploader/go-ultimate"
 	"github.com/spf13/cobra"
 )
 
-func cacheFile() string {
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		cacheDir = os.TempDir()
+func cacheBinFile() string {
+	dir := c64CacheDir
+	if dir == "" {
+		dir = defaultCacheDir()
 	}
-	return filepath.Join(cacheDir, "c64ctl", "cache.txt")
+	return filepath.Join(dir, "cache.bin")
 }
 
 var findType string
@@ -26,8 +29,9 @@ func newFindCmd() *cobra.Command {
 	findCmd := &cobra.Command{
 		Use:   "find [<query>]",
 		Short: "Search local assembly64 collection",
-		Long: `Search for files by name across Games, Demos, Music, etc. Uses cache for instant results.
+		Long: `Search for files by name or regex pattern across Games, Demos, Music, etc. Uses cache for instant results.
 
+Query supports case-insensitive egrep/ripgrep-style regex (e.g., "mayhem.*stix" or "stix|karate").
 Query is optional — omit it to list all files (use with -t/-f to narrow down).
 Use --limit 0 to show all matches (pipe to grep/rg for further filtering).`,
 		Args: cobra.MaximumNArgs(1),
@@ -54,46 +58,140 @@ func newBuildCacheCmd() *cobra.Command {
 		Long:  "Scan Games, Demos, Music, Discmags, Tools, Graphics and build a cache file.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmdBuildCache(buildCachePath)
+			p := buildCachePath
+			if p == "" || !cmd.Flags().Changed("path") {
+				if c64Assembly64Path != "" {
+					p = c64Assembly64Path
+				} else {
+					p = envOrDefault("C64U_ASSEMBLY64_PATH", assembly64Root())
+				}
+			}
+			return cmdBuildCache(p)
 		},
 	}
-	cmd.Flags().StringVarP(&buildCachePath, "path", "p", envOrDefault("ASSEMBLY64_PATH", assembly64Root()), "Path to assembly64 collection")
+	cmd.Flags().StringVarP(&buildCachePath, "path", "p", "", "Path to assembly64 collection")
 	return cmd
 }
 
 func newStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: "Show connection status and current screen",
+		Short: "Show effective configuration, cache status, and C64 firmware info",
+		Long:  "Displays effective c64ctl settings, local directories, search binary cache size, C64 Ultimate connectivity status, and firmware details.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Connected to C64 Ultimate")
-			screen, err := client.Debug.Screen(context.Background())
-			if err != nil {
-				return err
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
 			}
+
+			fmt.Println("c64ctl Status & Configuration")
+			fmt.Println("==============================")
 			fmt.Println()
-			for _, row := range screen.Rows {
-				fmt.Println(row)
+
+			// 1. Effective Configuration
+			fmt.Println("Effective Configuration:")
+			_, loadedPath, _ := loadConfigFile(configFile)
+			if configFile != "" {
+				fmt.Printf("  Config File:      %s (specified via --config)\n", configFile)
+			} else if loadedPath != "" {
+				fmt.Printf("  Config File:      %s (loaded)\n", loadedPath)
+			} else {
+				fmt.Printf("  Config File:      (none found; using defaults / env / flags)\n")
 			}
+			fmt.Printf("  Target Host:      %s\n", c64Host)
+			fmt.Printf("  User:             %s\n", c64User)
+			if c64Password != "" {
+				fmt.Printf("  Password:         (set)\n")
+			} else {
+				fmt.Printf("  Password:         (none)\n")
+			}
+
+			// 2. Directories & Cache
+			fmt.Println()
+			fmt.Println("Directories & Search Cache:")
+			fmt.Printf("  Config Directory: %s\n", defaultConfigDir())
+			fmt.Printf("  Assembly64 Path:  %s\n", c64Assembly64Path)
+			fmt.Printf("  Cache Directory:  %s\n", c64CacheDir)
+
+			cacheFile := cacheBinFile()
+			if fi, err := os.Stat(cacheFile); err == nil {
+				fmt.Printf("  Binary Cache:     %s (%s)\n", cacheFile, formatBytes(fi.Size()))
+			} else {
+				fmt.Printf("  Binary Cache:     %s (not built — run 'c64ctl build-cache')\n", cacheFile)
+			}
+
+			// 3. Connectivity & Firmware Info
+			fmt.Println()
+			fmt.Println("C64 Ultimate Connection:")
+
+			var opts []ultimate.Option
+			if c64Password != "" {
+				opts = append(opts, ultimate.WithPassword(c64Password))
+			}
+			c, err := ultimate.New(c64Host, opts...)
+			if err != nil {
+				fmt.Printf("  Status:           Disconnected\n")
+				fmt.Printf("  Error:            %v\n", err)
+				return nil
+			}
+
+			info, err := c.Info(ctx)
+			if err != nil {
+				fmt.Printf("  Status:           Disconnected (http://%s)\n", c64Host)
+				fmt.Printf("  Error:            %v\n", err)
+				return nil
+			}
+
+			fmt.Printf("  Status:           Connected (http://%s)\n", c64Host)
+			if info.Product != "" {
+				fmt.Printf("  Product:          %s\n", info.Product)
+			}
+			if info.FirmwareVersion != "" {
+				fmt.Printf("  Firmware Version: %s\n", info.FirmwareVersion)
+			}
+			if info.FPGAVersion != "" {
+				fmt.Printf("  FPGA Version:     %s\n", info.FPGAVersion)
+			}
+			if info.CoreVersion != "" {
+				fmt.Printf("  Core Version:     %s\n", info.CoreVersion)
+			}
+			if info.Hostname != "" {
+				fmt.Printf("  Device Hostname:  %s\n", info.Hostname)
+			}
+			if info.UniqueID != "" {
+				fmt.Printf("  Unique ID:        %s\n", info.UniqueID)
+			}
+
+			if ver, err := c.Version(ctx); err == nil && ver.Version != "" {
+				fmt.Printf("  REST API Version: %s\n", ver.Version)
+			}
+
+			if screen, err := c.Debug.Screen(ctx); err == nil && len(screen.Rows) > 0 {
+				fmt.Println()
+				fmt.Println("Current Screen:")
+				for _, row := range screen.Rows {
+					fmt.Printf("  %s\n", row)
+				}
+			}
+
 			return nil
 		},
 	}
 }
 
-// cacheExtensions lists all file extensions included in the cache.
-var cacheExtensions = []string{"prg", "d64", "d71", "d81", "g64", "crt", "tap", "t64", "sid", "mod"}
-
-// cacheExtSet is cacheExtensions as a set for the Go walker.
-var cacheExtSet = func() map[string]bool {
-	s := make(map[string]bool, len(cacheExtensions))
-	for _, e := range cacheExtensions {
-		s[e] = true
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
 	}
-	return s
-}()
-
-var searchDirs = []string{"Games", "Demos", "Music", "Discmags", "Tools", "Graphics"}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB (%d bytes)", float64(bytes)/float64(div), "KMGTPE"[exp], bytes)
+}
 
 func assembly64Root() string {
 	home, err := os.UserHomeDir()
@@ -103,91 +201,59 @@ func assembly64Root() string {
 	return filepath.Join(home, "Downloads", "assembly64")
 }
 
-func walkCollection(root string) ([]string, error) {
-	roots := make([]string, 0, len(searchDirs))
-	for _, dir := range searchDirs {
-		fullPath := filepath.Join(root, dir)
-		if info, err := os.Stat(fullPath); err == nil && info.IsDir() {
-			roots = append(roots, fullPath)
-		}
-	}
-	fmt.Printf("Scanning %d directories with Go walker...\n", len(roots))
-	return WalkFiles(WalkOptions{
-		Roots:      roots,
-		Extensions: cacheExtSet,
-		Workers:    8,
-	})
-}
-
 func cmdBuildCache(root string) error {
-	allFiles, err := walkCollection(root)
-	if err != nil {
-		return err
-	}
-
-	out := []byte(strings.Join(allFiles, "\n"))
-	if err := os.MkdirAll(filepath.Dir(cacheFile()), 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(cacheFile(), out, 0644); err != nil {
-		return err
-	}
-
-	fmt.Printf("\nCached %d files to %s\n", len(allFiles), cacheFile())
-	return nil
+	return BuildIndexFile(root, cacheBinFile())
 }
 
 func cmdFind(query string, filterType string, filterFolder string, limit int) error {
-	data, err := os.ReadFile(cacheFile())
+	root := c64Assembly64Path
+	if root == "" {
+		root = envOrDefault("C64U_ASSEMBLY64_PATH", assembly64Root())
+	}
+	idx, err := LoadIndex(cacheBinFile(), root)
+
 	if err != nil {
-		allFiles, err := walkCollection(assembly64Root())
-		if err != nil {
+		if err := cmdBuildCache(root); err != nil {
 			return err
 		}
-		data = []byte(strings.Join(allFiles, "\n"))
-		// Build cache for next time
-		if err := os.MkdirAll(filepath.Dir(cacheFile()), 0755); err == nil {
-			_ = os.WriteFile(cacheFile(), data, 0644)
+		idx, err = LoadIndex(cacheBinFile(), root)
+		if err != nil {
+			return fmt.Errorf("reading index file: %w", err)
 		}
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	query = strings.ToLower(query)
-	root := assembly64Root()
-
-	var matches []string
-	for _, line := range lines {
-		if query != "" && !strings.Contains(strings.ToLower(line), query) {
-			continue
-		}
-		if filterType != "" {
-			ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(line)), ".")
-			if ext != filterType {
-				continue
-			}
-		}
-		if filterFolder != "" {
-			rel, err := filepath.Rel(root, line)
-			if err == nil {
-				topFolder := strings.SplitN(rel, string(filepath.Separator), 2)[0]
-				if !strings.EqualFold(topFolder, filterFolder) {
-					continue
-				}
-			}
-		}
-		matches = append(matches, line)
+	res, err := idx.Find(FindOptions{
+		Query:        query,
+		FilterType:   filterType,
+		FilterFolder: filterFolder,
+		Limit:        limit,
+	})
+	if err != nil {
+		return err
 	}
 
-	if len(matches) == 0 {
+	if res.TotalMatches == 0 {
+		fmt.Fprintln(os.Stderr, "No matches found.")
 		return nil
 	}
 
-	if limit > 0 && len(matches) > limit {
-		matches = matches[:limit]
+	for _, line := range res.Matches {
+		fmt.Println(line)
 	}
 
-	for _, line := range matches {
-		fmt.Println(line)
+	if res.TotalMatches > res.Displayed {
+		var tips []string
+		if filterType == "" {
+			tips = append(tips, "-t crt")
+		}
+		if filterFolder == "" {
+			tips = append(tips, "-f Games")
+		}
+		if len(tips) > 0 {
+			fmt.Fprintf(os.Stderr, "\nShowing %d of %d matches (use -l 0 to show all, or filter with e.g. %s)\n", res.Displayed, res.TotalMatches, strings.Join(tips, ", "))
+		} else {
+			fmt.Fprintf(os.Stderr, "\nShowing %d of %d matches (use -l 0 to show all)\n", res.Displayed, res.TotalMatches)
+		}
 	}
 	return nil
 }

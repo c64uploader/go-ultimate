@@ -13,6 +13,11 @@ import (
 
 var client *ultimate.Client
 var c64Host string
+var c64User string
+var c64Password string
+var c64CacheDir string
+var c64Assembly64Path string
+var configFile string
 
 // rootCmd is the root cobra command.
 var rootCmd = &cobra.Command{
@@ -24,8 +29,7 @@ Control a C64 Ultimate device over the network.
 Load games, mount disks, play music, read screen, and more.
 
 Examples:
-  c64ctl run game.prg              Upload and run a PRG instantly
-  c64ctl crt game.crt              Run a cartridge
+  c64ctl run game.prg              Upload and run a PRG (or .crt, .t64, .sid, .mod)
   c64ctl mount disk.d64            Mount disk image
   c64ctl type LOAD "*",8,1         Type a BASIC command
   c64ctl screen                    Read the screen
@@ -36,34 +40,69 @@ Cache:
   c64ctl find ...     Instant searches via cached index
 
 Environment:
-  C64U_ADDRESS      C64 Ultimate hostname (default: c64u)
-  C64U_PASSWORD     Password for the device
-  ASSEMBLY64_PATH   Path to assembly64 collection (default: ~/Downloads/assembly64)`,
+  C64U_ADDRESS          C64 Ultimate hostname (default: c64u)
+  C64U_USER             Username for authentication (default: anonymous)
+  C64U_PASSWORD         Password for the device
+  C64U_ASSEMBLY64_PATH  Path to assembly64 collection (default: ~/Downloads/assembly64)
+  C64U_CACHE_DIR        Directory to store index cache files`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Commands that don't need C64 REST connection
+		cfg, loadedPath, err := loadConfigFile(configFile)
+		if err != nil && (configFile != "" || loadedPath != "") {
+			if configFile != "" {
+				return fmt.Errorf("loading config file %s: %w", configFile, err)
+			}
+		}
+
+		c64Host = resolveSetting(cmd, "host", "C64U_ADDRESS", cfgVal(cfg, func(c *Config) string { return c.Host }), "c64u")
+		c64User = resolveSetting(cmd, "user", "C64U_USER", cfgVal(cfg, func(c *Config) string { return c.User }), "anonymous")
+		c64Password = resolveSetting(cmd, "password", "C64U_PASSWORD", cfgVal(cfg, func(c *Config) string { return c.Password }), "")
+		c64CacheDir = resolveSetting(cmd, "cache-dir", "C64U_CACHE_DIR", cfgVal(cfg, func(c *Config) string { return c.CacheDir }), defaultCacheDir())
+		c64Assembly64Path = resolveSetting(cmd, "path", "C64U_ASSEMBLY64_PATH", cfgVal(cfg, func(c *Config) string { return c.Assembly64Path }), assembly64Root())
+
+		// Commands that don't need C64 REST connection or manage connection manually
 		if cmd.Name() == "find" || cmd.Name() == "help" || cmd.Name() == "build-cache" ||
 			cmd.Name() == "ls" || cmd.Name() == "put" || cmd.Name() == "get" || cmd.Name() == "rm" ||
-			cmd.Name() == "completion" {
+			cmd.Name() == "completion" || cmd.Name() == "status" {
 			return nil
 		}
 		var opts []ultimate.Option
-		if pwd := os.Getenv("C64U_PASSWORD"); pwd != "" {
-			opts = append(opts, ultimate.WithPassword(pwd))
+		if c64Password != "" {
+			opts = append(opts, ultimate.WithPassword(c64Password))
 		}
-		var err error
-		client, err = ultimate.New(c64Host, opts...)
-		return err
+		var clientErr error
+		client, clientErr = ultimate.New(c64Host, opts...)
+		return clientErr
 	},
+}
+
+func cfgVal(cfg *Config, fn func(*Config) string) string {
+	if cfg == nil {
+		return ""
+	}
+	return fn(cfg)
+}
+
+func resolveSetting(cmd *cobra.Command, flagName, envKey, configVal, defaultVal string) string {
+	if cmd != nil {
+		f := cmd.Flags().Lookup(flagName)
+		if f != nil && f.Changed {
+			return f.Value.String()
+		}
+	}
+	if envVal := os.Getenv(envKey); envVal != "" {
+		return envVal
+	}
+	if configVal != "" {
+		return configVal
+	}
+	return defaultVal
 }
 
 func registerCommands(root *cobra.Command) {
 	// cmd_loading.go
 	root.AddCommand(newRunCmd())
-	root.AddCommand(newCrtCmd())
-	root.AddCommand(newLoadCmd())
 
 	// cmd_disk.go
-	root.AddCommand(newPlayCmd())
 	root.AddCommand(newMountCmd())
 	root.AddCommand(newUnmountCmd())
 	root.AddCommand(newDrivesCmd())
@@ -112,10 +151,16 @@ func registerCommands(root *cobra.Command) {
 	root.AddCommand(newRmCmd())
 }
 
-func main() {
+func init() {
 	registerCommands(rootCmd)
-	rootCmd.PersistentFlags().StringVarP(&c64Host, "host", "H", envOrDefault("C64U_ADDRESS", "c64u"), "C64 Ultimate hostname")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "Path to config file")
+	rootCmd.PersistentFlags().StringVarP(&c64Host, "host", "H", "c64u", "C64 Ultimate hostname")
+	rootCmd.PersistentFlags().StringVarP(&c64User, "user", "u", "anonymous", "Username for authentication")
+	rootCmd.PersistentFlags().StringVarP(&c64Password, "password", "P", "", "Password for authentication")
+	rootCmd.PersistentFlags().StringVar(&c64CacheDir, "cache-dir", "", "Directory to store index cache files")
+}
 
+func main() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -135,7 +180,10 @@ Examples:
   c64ctl read $d000 256        # dump VIC-II registers`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			addr := parseHex16(args[0])
+			addr, err := parseHex16(args[0])
+			if err != nil {
+				return err
+			}
 			count, err := strconv.Atoi(args[1])
 			if err != nil {
 				return fmt.Errorf("invalid count %q", args[1])
@@ -190,12 +238,18 @@ Examples:
   c64ctl fill $1000 256 $ea     # fill with NOPs`,
 		Args: cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			addr := parseHex16(args[0])
+			addr, err := parseHex16(args[0])
+			if err != nil {
+				return err
+			}
 			count, err := strconv.Atoi(args[1])
 			if err != nil {
 				return fmt.Errorf("invalid count %q", args[1])
 			}
-			val := parseHex8(args[2])
+			val, err := parseHex8(args[2])
+			if err != nil {
+				return err
+			}
 
 			data := make([]byte, count)
 			for i := range data {
@@ -225,7 +279,10 @@ Examples:
   c64ctl disasm $1000 128      # disassemble 128 bytes from $1000`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			addr := parseHex16(args[0])
+			addr, err := parseHex16(args[0])
+			if err != nil {
+				return err
+			}
 			count := 64
 			if len(args) > 1 {
 				var err error

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -57,12 +56,12 @@ func newFTPClient(host string) (*FTPClient, error) {
 		return nil, fmt.Errorf("unexpected ftp greeting (%d): %s", code, msg)
 	}
 
-	// Login (uses C64U_USER and C64U_PASSWORD env vars if set)
-	user := os.Getenv("C64U_USER")
+	// Login (uses c64User and c64Password, falling back to env vars / default "anonymous")
+	user := c64User
 	if user == "" {
 		user = "anonymous"
 	}
-	pwd := os.Getenv("C64U_PASSWORD")
+	pwd := c64Password
 	if pwd == "" {
 		pwd = "anonymous"
 	}
@@ -156,7 +155,7 @@ func (c *FTPClient) pasv() (net.Conn, error) {
 	port := p1*256 + p2
 
 	ip := strings.Join(parts[0:4], ".")
-	if ip == "0.0.0.0" {
+	if ip == "0.0.0.0" || ip == "127.0.0.1" {
 		host, _, err := net.SplitHostPort(c.addr)
 		if err == nil && host != "" {
 			ip = host
@@ -166,6 +165,13 @@ func (c *FTPClient) pasv() (net.Conn, error) {
 	dataAddr := net.JoinHostPort(ip, strconv.Itoa(port))
 	dataConn, err := net.DialTimeout("tcp", dataAddr, 5*time.Second)
 	if err != nil {
+		host, _, splitErr := net.SplitHostPort(c.addr)
+		if splitErr == nil && host != "" && host != ip {
+			fallbackAddr := net.JoinHostPort(host, strconv.Itoa(port))
+			if fallbackConn, fallbackErr := net.DialTimeout("tcp", fallbackAddr, 5*time.Second); fallbackErr == nil {
+				return fallbackConn, nil
+			}
+		}
 		return nil, fmt.Errorf("connect to FTP passive data socket %s: %w", dataAddr, err)
 	}
 	return dataConn, nil
@@ -322,7 +328,7 @@ func parseFTPEntry(line string) FTPEntry {
 	// 01-01-26 12:00PM 2049 game.prg
 	if len(fields) >= 4 && strings.Contains(line, "<DIR>") {
 		entry.IsDir = true
-		entry.Name = fields[len(fields)-1]
+		entry.Name = strings.Join(fields[3:], " ")
 		return entry
 	}
 	if len(fields) >= 4 {

@@ -7,31 +7,29 @@ description: Use to control C64 hardware: load/run PRG, T64, D64, CRT, or SID fi
 
 ## Directives & Conventions
 - Run 'c64ctl <command> --help' to see detailed flags and usage examples for any subcommand.
-- Use 'c64ctl find <query>' to search local Assembly64 games and demos (-t prg|d64|crt|t64|sid).
+- Config file: Auto-loaded from ./.c64ctl.json or ~/.config/c64ctl/config.json (or specify via --config <file>).
+- Precedence: CLI Flags > Environment Variables > Config File > Defaults.
+- Global Flags: --host (-H), --user (-u), --password (-P), --config (-c), --cache-dir.
+- Use 'c64ctl find <query>' to search local Assembly64 collection by substring or regex (e.g., "mayhem.*stix" or "stix|karate"). Supports filtering with -t (prg, crt, d64, d71, d81, g64, tap, t64, sid, mod) and -f (Games, Demos, Music, Discmags, Tools, Graphics).
 - .TAP files are raw tape waveforms and cannot be executed directly via 'c64ctl run'; use .PRG or .T64 instead.
-- For disk images (.D64), mount with 'c64ctl mount' then boot with 'c64ctl type \'LOAD "*",8,1\nRUN\''.
 
 ## Workflows
 ```bash
-# PRG / T64 / SID Workflow (instant execution)
-c64ctl run "/path/to/game.prg"
-c64ctl run "/path/to/music.sid" --song 1
+# Run program, cartridge, disk image, or music file
+c64ctl run "/path/to/game.d64"
 
-# D64 Disk Workflow
-c64ctl mount "/path/to/game.d64" && c64ctl type 'LOAD "*",8,1\nRUN'
+# Swap joystick ports 1 ↔ 2 (if joystick is unresponsive)
+c64ctl joy swap
 
-# CRT Cartridge Workflow
-c64ctl crt "/path/to/game.crt"
+# Mount next disk image for multi-disk games (e.g. Side B)
+c64ctl mount "/path/to/side_b.d64"
 ```
 
 ## Command Reference
 
 ### Loading & Execution
 ```bash
-c64ctl run <file> [--entry N] [--song N] # Upload and run a PRG, T64, SID, or MOD file
-c64ctl crt <file.crt>        # Run a CRT cartridge file
-c64ctl load <file.prg>       # Upload PRG without running (for multi-part loaders)
-c64ctl play <file.d64> [--wait N] # Mount disk, load, and run automatically
+c64ctl run <file> [--entry N] [--song N] [--wait N] # Upload/mount and run a PRG, CRT, D64, T64, SID, or MOD file
 ```
 
 ### Disk & Virtual Drives
@@ -53,7 +51,7 @@ c64ctl rm <remote_pattern...> # Delete file(s) on C64 via FTP
 ### Keyboard & Screen
 ```bash
 c64ctl type <text>           # Type text on the C64 keyboard
-c64ctl press <key> [key...]  # Simulate pressing key(s) via KERNAL hooks and CIA matrix
+c64ctl press <key> [key...]  # Simulate keypress (Note: buggy and unreliable in games with custom IRQ/hardware keyboard scanners)
 c64ctl screen [--hex]        # Read current 25×40 screen text (or hex dump with --hex)
 c64ctl screenmode            # Show VIC-II display mode and character set
 c64ctl basic                 # Read tokenized BASIC program from RAM
@@ -62,7 +60,7 @@ c64ctl sprites               # Show all 8 hardware sprites
 
 ### System & Memory Debugging
 ```bash
-c64ctl status                # Show connection status and current screen
+c64ctl status                # Show effective config, cache size, and C64 firmware info (connectivity probe)
 c64ctl reboot                # Full reboot (Ultimate firmware + C64)
 c64ctl reset                 # Hardware reset (keeps cartridge)
 c64ctl pause                 # Freeze the C64 CPU
@@ -74,7 +72,7 @@ c64ctl read <address> <count> # Read hex dump from C64 RAM
 c64ctl fill <address> <count> <value> # Fill a range of C64 RAM with a byte value
 c64ctl disasm <address> [<count>] # Disassemble 6502 code from C64 RAM
 c64ctl asm [<file>]          # Assemble 6502 source and inject into C64 RAM
-c64ctl find [<query>] [--type T] [--folder F] [--limit N] # Search local assembly64 collection
+c64ctl find [<query>] [-t type] [-f folder] [-l limit] # Search local collection by name or regex (e.g. "stix|karate", -l 0 for all)
 c64ctl build-cache [--path <dir>] # Build/rebuild the file cache for instant search
 ```
 
