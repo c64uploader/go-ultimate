@@ -46,7 +46,7 @@ func TestAssemble(t *testing.T) {
 				// loop PC is $1002
 				0xCA,       // DEX (PC $1002, size 1)
 				0xD0, 0xFD, // BNE loop: offset $1002-($1003+2)=-3=$FD
-				0x8E, 0x20, 0xD0, // STX border ($D020) — abs mode, border>$FF
+				0x8E, 0x20, 0xD0, // STX border ($D020) - abs mode, border>$FF
 				0x60, // RTS
 			},
 		},
@@ -384,6 +384,23 @@ func TestAssemble(t *testing.T) {
 				0x0b, 0x08, 0x0a, 0x00, 0x9e, '2', '0', '6', '1', 0x00, 0x00, 0x00,
 				// code at $080d
 				0xa9, 0x05, 0x8d, 0x20, 0xd0, 0x60,
+			},
+		},
+
+		// ── CartridgeHeader ───────────────────────────────────────────────────────
+		{
+			name: "CartridgeHeader produces 9-byte C64 cart header at $8000",
+			source: `
+				* = $8000
+				CartridgeHeader(boot)
+				boot:
+					nop
+			`,
+			want: []byte{
+				0x00, 0x80, // PRG load address $8000
+				0x09, 0x80, 0x09, 0x80, // cold & warm vectors -> $8009
+				0xc3, 0xc2, 0xcd, 0x38, 0x30, // "CBM80" signature
+				0xea, // NOP at $8009
 			},
 		},
 

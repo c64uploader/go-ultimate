@@ -27,7 +27,7 @@ Examples:
 
 The assembler supports labels, .byte/.word/.text, BASICHeader,
 and standard 6502 addressing modes. Use * = $addr to set origin
-(defaults to $0801 — BASIC area).`,
+(defaults to $0801 - BASIC area).`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var source []byte

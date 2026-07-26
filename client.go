@@ -167,7 +167,7 @@ func (c *Client) doChecked(ctx context.Context, method, path string, body io.Rea
 }
 
 // getJSON runs a request, checks the HTTP status, unmarshals the JSON body into result,
-// and then checks the firmware-level "errors" array — the device may return HTTP 200
+// and then checks the firmware-level "errors" array - the device may return HTTP 200
 // while still reporting a failure. Pass nil for result to skip unmarshaling.
 func (c *Client) getJSON(ctx context.Context, method, path string, body io.Reader, contentType string, result any) error {
 	data, status, err := c.doChecked(ctx, method, path, body, contentType)

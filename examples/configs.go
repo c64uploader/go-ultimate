@@ -14,29 +14,28 @@ func main() {
 	client, _ := ultimate.New("c64u")
 	ctx := context.Background()
 
-	// List category names.
-	categories, _ := client.Configs.List(ctx)
-	fmt.Println("categories:", categories)
+	// 1. Read REU settings
+	reuCfg, _ := client.Configs.Get(ctx, "C64 and Cartridge Settings")
+	reuEnabled, _ := reuCfg.Bool("C64 and Cartridge Settings", "RAM Expansion Unit")
+	reuSize, _ := reuCfg.String("C64 and Cartridge Settings", "REU Size")
+	fmt.Printf("REU Enabled: %v, Size: %s\n", reuEnabled, reuSize)
 
-	// Pick a category and read all its current values.
-	category := categories[0]
-	settings, _ := client.Configs.Get(ctx, category)
-	for name, value := range settings[category] {
-		fmt.Println(name, value)
-	}
+	// 2. Read Accelerator settings
+	speedCfg, _ := client.Configs.Get(ctx, "U64 Specific Settings")
+	cpuSpeed, _ := speedCfg.Int("U64 Specific Settings", "CPU Speed")
+	turboMode, _ := speedCfg.String("U64 Specific Settings", "Turbo Control")
+	fmt.Printf("CPU Speed: %dx, Turbo Control: %s\n", cpuSpeed, turboMode)
 
-	// Get metadata for one item: current value, allowed values, min/max, etc.
-	// Pick an item name from the output above.
-	item := "Vol Sampler L"
-	meta, _ := client.Configs.GetItem(ctx, category, item)
-	info := meta[category][item]
-	fmt.Println(item, "current:", info.Current, "allowed:", info.Values)
+	// 3. Update REU and Accelerator settings
+	_ = client.Configs.SetBool(ctx, "C64 and Cartridge Settings", "RAM Expansion Unit", true)
+	_ = client.Configs.Set(ctx, "C64 and Cartridge Settings", "REU Size", "16 MB")
+	_ = client.Configs.SetInt(ctx, "U64 Specific Settings", "CPU Speed", 4)
 
-	// Change the setting and restore the original.
-	original := fmt.Sprint(info.Current)
-	_ = client.Configs.Set(ctx, category, item, info.Values[0])
-	_ = client.Configs.Set(ctx, category, item, original)
+	// 4. Inspect REU Size metadata (allowed sizes)
+	meta, _ := client.Configs.GetItem(ctx, "C64 and Cartridge Settings", "REU Size")
+	info, _ := meta.Get("C64 and Cartridge Settings", "REU Size")
+	fmt.Println("Allowed REU Sizes:", info.Values)
 
-	// Save to flash to persist after reboot:
+	// 5. Persist changes to flash storage
 	// _ = client.Configs.SaveToFlash(ctx, ultimate.ConfigOptions{})
 }

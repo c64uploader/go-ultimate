@@ -16,7 +16,9 @@
 //   - Runners: Upload and run programs (.PRG, .CRT) or play music (.SID, .MOD).
 //   - Drives: Mount disk images and control emulated floppy drives.
 //   - Files: Query file metadata and create blank disk images.
-//   - Configs: Read and write device settings.
+//   - Configs: Read and write device settings. All values are strings on the wire;
+//     use Configs.GetItem to discover valid values and Configs.Set to write them,
+//     with ConfigMap.Bool/Int/String and Configs.SetBool/SetInt for typed convenience.
 //   - Keyboard: Inject text and keystrokes into C64 (latter is best-effort).
 //   - Streams: Multiplex video and audio streams into AVI format.
 //   - Debug: Read and decode C64 state: screen, registers, memory.

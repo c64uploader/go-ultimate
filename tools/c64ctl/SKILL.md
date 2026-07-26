@@ -1,28 +1,25 @@
 ---
 name: c64ctl
-description: Use to control C64 hardware: load/run PRG, T64, D64, CRT, or SID files, mount disks, inspect screen/RAM, type text, send keypresses, or execute 6502 assembly.
+description: "Use to control C64 hardware: run PRG, T64, D64, CRT, or SID files, mount disks, inspect screen/RAM, type text, or execute 6502 assembly."
 ---
 
-# C64 Ultimate CLI ('c64ctl') Skill Guide
+## Global Configuration & Discovery
+- **Global Flags**: `--host` (`-H`), `--user` (`-u`), `--password` (`-P`), `--config` (`-c`).
+- **Config File**: Auto-loaded from `<UserConfigDir>/c64ctl/config.json` (e.g., `~/.config/c64ctl/config.json` on Linux, `~/Library/Application Support/c64ctl/config.json` on macOS; override via `--config <file>`).
+- **Precedence**: CLI Flags > Environment Variables > Config File > Defaults.
+- **Help**: Run `c64ctl <command> --help` to see detailed flags and usage examples for any subcommand.
 
-## Directives & Conventions
-- Run 'c64ctl <command> --help' to see detailed flags and usage examples for any subcommand.
-- Config file: Auto-loaded from ./.c64ctl.json or ~/.config/c64ctl/config.json (or specify via --config <file>).
-- Precedence: CLI Flags > Environment Variables > Config File > Defaults.
-- Global Flags: --host (-H), --user (-u), --password (-P), --config (-c), --cache-dir.
-- Use 'c64ctl find <query>' to search local Assembly64 collection by substring or regex (e.g., "mayhem.*stix" or "stix|karate"). Supports filtering with -t (prg, crt, d64, d71, d81, g64, tap, t64, sid, mod) and -f (Games, Demos, Music, Discmags, Tools, Graphics).
-- .TAP files are raw tape waveforms and cannot be executed directly via 'c64ctl run'; use .PRG or .T64 instead.
+## Critical Constraints & Gotchas
+- **Search (`c64ctl find`)**: Searches local Assembly64 collection by substring or regex (`stix|karate`). Filter with `-t` (file types: prg, crt, d64, d71, d81, g64, tap, t64, sid, mod) and `-f` (folders: Games, Demos, Music, Discmags, Tools, Graphics).
+- **Tape Files (`.TAP`)**: Raw tape waveforms; cannot be executed directly via `c64ctl run`. Use `.PRG` or `.T64` instead.
 
-## Workflows
+## Quick Examples
 ```bash
-# Run program, cartridge, disk image, or music file
-c64ctl run "/path/to/game.d64"
-
-# Swap joystick ports 1 ↔ 2 (if joystick is unresponsive)
-c64ctl joy swap
-
-# Mount next disk image for multi-disk games (e.g. Side B)
-c64ctl mount "/path/to/side_b.d64"
+c64ctl run "/path/to/game.d64"                                     # Run PRG, CRT, D64, T64, SID, or MOD
+c64ctl joy swap                                                    # Swap joystick ports 1 ↔ 2 if controls unresponsive
+c64ctl mount "/path/to/side_b.d64"                                 # Mount next disk image for multi-disk games
+c64ctl screenmode | grep -q Bitmap && c64ctl screenshot shot.png || c64ctl screen  # Smart screenshot/screen text
+c64ctl config get "C64 and Cartridge Settings" "REU Size"          # Read setting; set with 'config set' and 'config save'
 ```
 
 ## Command Reference
@@ -53,9 +50,19 @@ c64ctl rm <remote_pattern...> # Delete file(s) on C64 via FTP
 c64ctl type <text>           # Type text on the C64 keyboard
 c64ctl press <key> [key...]  # Simulate keypress (Note: buggy and unreliable in games with custom IRQ/hardware keyboard scanners)
 c64ctl screen [--hex]        # Read current 25×40 screen text (or hex dump with --hex)
+c64ctl screenshot <file.png> # Capture bitmap-mode screenshot as 320×200 PNG (fails if not in bitmap mode)
 c64ctl screenmode            # Show VIC-II display mode and character set
 c64ctl basic                 # Read tokenized BASIC program from RAM
-c64ctl sprites               # Show all 8 hardware sprites
+c64ctl sprites [-o <dir>]    # Show hardware sprites or dump active sprites to PNG
+```
+
+### Device Configuration
+```bash
+c64ctl config get <cat> [<item>]  # Read settings (-a for all categories)
+c64ctl config set <cat> <item> <v> # Write a setting (all values are strings)
+c64ctl config save [<cat>]         # Persist to flash
+c64ctl config load [<cat>]         # Restore from flash
+c64ctl config reset [<cat>]        # Factory defaults
 ```
 
 ### System & Memory Debugging

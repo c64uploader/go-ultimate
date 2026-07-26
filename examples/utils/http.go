@@ -22,7 +22,12 @@ func HTTPGet(url string) ([]byte, error) {
 	}
 	slog.Info("downloading file", "url", url, "cachePath", cachePath)
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("download %s: %w", url, err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", url, err)
 	}

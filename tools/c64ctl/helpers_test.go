@@ -125,8 +125,17 @@ func TestGlobalFlagsAndEnvVars(t *testing.T) {
 		t.Errorf("expected persistent --config shorthand 'c', got %q", configFlag.Shorthand)
 	}
 
-	cacheFlag := rootCmd.PersistentFlags().Lookup("cache-dir")
-	if cacheFlag == nil {
-		t.Fatalf("expected persistent --cache-dir flag")
+	if cacheFlag := rootCmd.PersistentFlags().Lookup("cache-dir"); cacheFlag != nil {
+		t.Fatalf("expected --cache-dir NOT to be a global persistent flag")
+	}
+
+	findCmd := newFindCmd()
+	if cacheFlag := findCmd.Flags().Lookup("cache-dir"); cacheFlag == nil {
+		t.Fatalf("expected --cache-dir flag on 'find' command")
+	}
+
+	buildCacheCmd := newBuildCacheCmd()
+	if cacheFlag := buildCacheCmd.Flags().Lookup("cache-dir"); cacheFlag == nil {
+		t.Fatalf("expected --cache-dir flag on 'build-cache' command")
 	}
 }

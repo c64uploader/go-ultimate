@@ -35,7 +35,7 @@ func Disassemble(data []byte, startAddr uint16) []Instruction {
 			size = 1
 		}
 
-		// Too few bytes remain for this instruction — emit the rest as .byte entries.
+		// Too few bytes remain for this instruction - emit the rest as .byte entries.
 		if pos+size > len(data) {
 			for pos < len(data) {
 				instructions = append(instructions, Instruction{

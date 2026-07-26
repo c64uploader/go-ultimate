@@ -409,16 +409,16 @@ func TestConfigs(t *testing.T) {
 		t.Fatalf("Drive = %v", items["Drive"])
 	}
 
-	// Test safe lookup methods
-	val, ok := cfg.Get("Drive A Settings", "Drive")
+	// Test typed lookup methods
+	val, ok := cfg.String("Drive A Settings", "Drive")
 	if !ok || val != "Enabled" {
-		t.Fatalf("cfg.Get failed: val=%v, ok=%v", val, ok)
+		t.Fatalf("cfg.String failed: val=%v, ok=%v", val, ok)
 	}
-	if _, ok := cfg.Get("Drive A Settings", "Nonexistent"); ok {
-		t.Fatal("cfg.Get succeeded for nonexistent item")
+	if _, ok := cfg.String("Drive A Settings", "Nonexistent"); ok {
+		t.Fatal("cfg.String succeeded for nonexistent item")
 	}
-	if _, ok := cfg.Get("Nonexistent", "Drive"); ok {
-		t.Fatal("cfg.Get succeeded for nonexistent category")
+	if _, ok := cfg.String("Nonexistent", "Drive"); ok {
+		t.Fatal("cfg.String succeeded for nonexistent category")
 	}
 
 	detail, err := c.Configs.GetItem(ctx, "Drive A Settings", "Drive Bus ID")
@@ -443,6 +443,20 @@ func TestConfigs(t *testing.T) {
 	}
 	if !strings.Contains(m.lastRequest().FullPath, "value=9") {
 		t.Fatalf("set path = %q", m.lastRequest().FullPath)
+	}
+
+	if err := c.Configs.SetBool(ctx, "Drive A Settings", "Drive", true); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.lastRequest().FullPath, "value=Enabled") {
+		t.Fatalf("SetBool path = %q", m.lastRequest().FullPath)
+	}
+
+	if err := c.Configs.SetInt(ctx, "Drive A Settings", "Drive Bus ID", 11); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.lastRequest().FullPath, "value=11") {
+		t.Fatalf("SetInt path = %q", m.lastRequest().FullPath)
 	}
 
 	if err := c.Configs.Apply(ctx, ConfigMap{"Drive A Settings": {"Drive": "Disabled"}}); err != nil {

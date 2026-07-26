@@ -143,23 +143,25 @@ func TestE2E_RunnersRunCRT(t *testing.T) {
 	// We only need to provide the main application logic;
 	// the vectors, signature, and system init are handled by the builder.
 	asm := `
-		* = $8040
+		* = $8000
+		CartridgeHeader(entry)
+	entry:
 		lda #$42
-		sta $c000
+		sta $C000
 		lda #$05
 		sta $d020
 	hold:
 		jmp hold
 	`
 
-	t.Log("Building XIP cartridge...")
+	t.Log("Building raw CRT cartridge...")
 	prog, err := c64.Assemble(asm)
 	if err != nil {
 		t.Fatalf("Assemble failed: %v", err)
 	}
-	crt, err := c64.NewXIPCartridge(c64.CRTNormal8K, "E2E_TEST", prog)
+	crt, err := c64.NewRawCartridge(c64.CRTNormal8K, "E2E_TEST", prog.Code())
 	if err != nil {
-		t.Fatalf("NewXIPCartridge failed: %v", err)
+		t.Fatalf("NewRawCartridge failed: %v", err)
 	}
 
 	_ = client.Machine.Poke(ctx, 0xC000, 0)

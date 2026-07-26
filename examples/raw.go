@@ -21,6 +21,13 @@ func main() {
 	conn, _ := client.Raw.Dial(ctx)
 	defer conn.Close()
 
+	// Direct socket command options on TCP port 64:
+	// _ = conn.LoadAndRun(ctx, prgBytes)       // DMA load & run PRG directly
+	// _ = conn.LoadAndJump(ctx, 0x1000, prg)    // DMA load PRG & jump to address
+	// _ = conn.RunCartridge(ctx, crtBytes)     // Run CRT cartridge bytes
+	// _ = conn.LoadKernal(ctx, kernalRomBytes) // Upload replacement KERNAL ROM
+	// _ = conn.WriteREU(ctx, 0, reuBytes)       // Write data to REU expansion RAM
+
 	for _, r := range [][2]uint16{{0xD020, 0}, {0xD021, 0}, {0xD011, 0x3B}, {0xD016, 0x08}, {0xD018, 0x18}} {
 		_ = conn.WriteMemory(ctx, r[0], []byte{byte(r[1])})
 	}

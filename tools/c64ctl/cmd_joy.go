@@ -13,15 +13,15 @@ func newJoyCmd() *cobra.Command {
 		Short: "Control joystick port swapping and WASD emulation",
 		Long: `Swap joystick ports 1 and 2, or enable keyboard-based joystick emulation.
 
-  normal    — Normal joystick assignment (default)
-  swap      — Swap joystick ports 1 ↔ 2
-  wasd1     — WASD keys emulate joystick on port 1 (Up/Down/Left/Right + Space=Fire)
-  wasd2     — WASD keys emulate joystick on port 2
+  normal    - Normal joystick assignment (default)
+  swap      - Swap joystick ports 1 <-> 2
+  wasd1     - WASD keys emulate joystick on port 1 (Up/Down/Left/Right + Space=Fire)
+  wasd2     - WASD keys emulate joystick on port 2
 
 Without arguments, shows the current joystick mode.
 
 Use c64ctl press to send keys remotely (best-effort; requires KERNAL IRQ or standard CIA reading):
-  c64ctl press W A S D Space   — simulate joystick movement + fire`,
+  c64ctl press W A S D Space   - simulate joystick movement + fire`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := client.Configs
@@ -58,7 +58,7 @@ Use c64ctl press to send keys remotely (best-effort; requires KERNAL IRQ or stan
 
 			mode, ok := modeMap[args[0]]
 			if !ok {
-				return fmt.Errorf("unknown mode %q — use: normal, swap, wasd1, wasd2", args[0])
+				return fmt.Errorf("unknown mode %q - use: normal, swap, wasd1, wasd2", args[0])
 			}
 
 			if err := cfg.Set(context.Background(), cat, item, mode); err != nil {

@@ -59,10 +59,8 @@ Environment:
 		c64CacheDir = resolveSetting(cmd, "cache-dir", "C64U_CACHE_DIR", cfgVal(cfg, func(c *Config) string { return c.CacheDir }), defaultCacheDir())
 		c64Assembly64Path = resolveSetting(cmd, "path", "C64U_ASSEMBLY64_PATH", cfgVal(cfg, func(c *Config) string { return c.Assembly64Path }), assembly64Root())
 
-		// Commands that don't need C64 REST connection or manage connection manually
-		if cmd.Name() == "find" || cmd.Name() == "help" || cmd.Name() == "build-cache" ||
-			cmd.Name() == "ls" || cmd.Name() == "put" || cmd.Name() == "get" || cmd.Name() == "rm" ||
-			cmd.Name() == "completion" || cmd.Name() == "status" {
+		// Commands that don't need C64 REST API connection
+		if isStandalone(cmd) {
 			return nil
 		}
 		var opts []ultimate.Option
@@ -117,9 +115,13 @@ func registerCommands(root *cobra.Command) {
 	root.AddCommand(newScreenModeCmd())
 	root.AddCommand(newBasicCmd())
 	root.AddCommand(newSpritesCmd())
+	root.AddCommand(newScreenshotCmd())
 
 	// cmd_joy.go
 	root.AddCommand(newJoyCmd())
+
+	// cmd_config.go
+	root.AddCommand(newConfigCmd())
 
 	// cmd_machine.go
 	root.AddCommand(newRebootCmd())
@@ -157,7 +159,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&c64Host, "host", "H", "c64u", "C64 Ultimate hostname")
 	rootCmd.PersistentFlags().StringVarP(&c64User, "user", "u", "anonymous", "Username for authentication")
 	rootCmd.PersistentFlags().StringVarP(&c64Password, "password", "P", "", "Password for authentication")
-	rootCmd.PersistentFlags().StringVar(&c64CacheDir, "cache-dir", "", "Directory to store index cache files")
 }
 
 func main() {
@@ -166,7 +167,7 @@ func main() {
 	}
 }
 
-// read command — hex dump from C64 RAM
+// read command - hex dump from C64 RAM
 
 func newReadCmd() *cobra.Command {
 	return &cobra.Command{
@@ -224,7 +225,7 @@ Examples:
 	}
 }
 
-// fill command — fill a range of C64 RAM with a byte value
+// fill command - fill a range of C64 RAM with a byte value
 
 func newFillCmd() *cobra.Command {
 	return &cobra.Command{
@@ -265,7 +266,7 @@ Examples:
 	}
 }
 
-// disasm command — read RAM and disassemble 6502
+// disasm command - read RAM and disassemble 6502
 
 func newDisasmCmd() *cobra.Command {
 	return &cobra.Command{
@@ -309,4 +310,21 @@ Examples:
 	}
 }
 
+// isStandalone returns true for commands that don't need the C64 REST API client.
+// These either use FTP (ls/put/get/rm), have their own connection logic (status),
+// or are offline (find, build-cache, help, completion).
+func isStandalone(cmd *cobra.Command) bool {
+	// Config subcommands need the REST client — never standalone.
+	if cmd.Parent() != nil && cmd.Parent().Name() == "config" {
+		return false
+	}
+	switch cmd.Name() {
+	case "find", "help", "build-cache", "completion", "status":
+		return true
+	case "ls", "put", "get", "rm":
+		// FTP commands — standalone unless they're config subcommands (handled above)
+		return true
+	}
+	return false
+}
 

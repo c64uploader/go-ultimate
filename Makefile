@@ -10,8 +10,10 @@ help: ## Show available targets
 test: ## Run unit tests (platform-neutral, suitable for CI)
 	$(GO) test ./...
 
+TEST_RUN ?=
+
 e2e: ## Run end-to-end tests (requires C64 Ultimate; C64U_ADDRESS, C64U_PASSWORD)
-	$(GO) test -C tests/e2e ./... -count 1
+	$(GO) test -C tests/e2e -v ./... -count 1 $(if $(TEST_RUN),-run '$(TEST_RUN)')
 
 lint: ## Run golangci-lint
 	$(GO) tool -modfile=tools/go.mod golangci-lint run ./...

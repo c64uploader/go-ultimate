@@ -27,13 +27,12 @@ func main() {
 			rts
 	`)
 
-	// Put it on a D64 new disk image.
+	// 1. Create and mount a D64 (single-sided 35-track 1541) image on Drive A.
 	disk, _ := c64.NewDiskImage(c64.D64).
 		WithDiskName("DEMO").
 		AddFile("HELLO", program.Bytes()).
 		Build()
 
-	// Mount the newly created disk image on drive 8.
 	_ = client.Drives.MountBytes(ctx, ultimate.DriveA, disk, ultimate.MountOptions{
 		ImageType: ultimate.ImageD64,
 		Mode:      ultimate.MountReadOnly,
@@ -54,11 +53,11 @@ func main() {
 	time.Sleep(5 * time.Second)
 	_ = client.Drives.Unmount(ctx, ultimate.DriveA)
 
-	// Mount an image already on the device:
+	// Mount an image already on the device filesystem:
 	// _ = client.Drives.Mount(ctx, ultimate.DriveA, "/usb0/disks/game.d64",
 	//     ultimate.MountOptions{ImageType: ultimate.ImageD64})
 
-	// Drive power and mode control.
+	// Drive power and mode control:
 	// _ = client.Drives.TurnOn(ctx, ultimate.DriveA)
 	// _ = client.Drives.ResetDrive(ctx, ultimate.DriveA)
 	// _ = client.Drives.SetMode(ctx, ultimate.DriveA, ultimate.DriveMode1541)

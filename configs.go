@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 )
 
 // ConfigsService reads and writes device settings.
@@ -19,13 +21,69 @@ type ConfigsService struct {
 // ConfigMap is category -> setting name -> current value.
 type ConfigMap map[string]map[string]any
 
-// Get retrieves a setting value by category and item name. Returns false if not found.
-func (m ConfigMap) Get(category, item string) (any, bool) {
+// lookup returns the raw value for category+item, or nil if not found.
+func (m ConfigMap) lookup(category, item string) any {
 	if cat, ok := m[category]; ok {
-		val, ok := cat[item]
-		return val, ok
+		return cat[item]
 	}
-	return nil, false
+	return nil
+}
+
+// String returns the value as a string. Returns false if not found.
+func (m ConfigMap) String(category, item string) (string, bool) {
+	v := m.lookup(category, item)
+	if v == nil {
+		return "", false
+	}
+	s, ok := v.(string)
+	if ok {
+		return s, true
+	}
+	return fmt.Sprint(v), true
+}
+
+// Bool parses a config value as a boolean. Recognises "Enabled"/"Disabled",
+// "Yes"/"No", "ON"/"OFF" (case-insensitive), and numeric 1/0.
+func (m ConfigMap) Bool(category, item string) (bool, bool) {
+	v := m.lookup(category, item)
+	if v == nil {
+		return false, false
+	}
+	switch s := strings.ToLower(fmt.Sprint(v)); s {
+	case "enabled", "yes", "on", "1":
+		return true, true
+	case "disabled", "no", "off", "0":
+		return false, true
+	default:
+		if n, err := strconv.Atoi(s); err == nil {
+			return n != 0, true
+		}
+		return false, false
+	}
+}
+
+// Int parses a config value as an integer. Handles JSON numbers, plain numeric
+// strings, and strings with unit suffixes (e.g. "2 MB", " 0 dB").
+func (m ConfigMap) Int(category, item string) (int, bool) {
+	v := m.lookup(category, item)
+	if v == nil {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case string:
+		trimmed := strings.TrimSpace(n)
+		if idx := strings.IndexFunc(trimmed, func(r rune) bool {
+			return r != '-' && r != '+' && (r < '0' || r > '9')
+		}); idx > 0 {
+			trimmed = trimmed[:idx]
+		}
+		if i, err := strconv.Atoi(trimmed); err == nil {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // ConfigItem is the metadata for one device setting.
@@ -112,6 +170,34 @@ func (s *ConfigsService) Set(ctx context.Context, category, item, value string) 
 	q.Set("value", value)
 	path := "/v1/configs/" + encodePath(category) + "/" + encodePath(item) + "?" + q.Encode()
 	return s.client.getJSON(ctx, http.MethodPut, path, nil, "", nil)
+}
+
+// Bool reads a single setting and parses it as a boolean.
+// Uses the same parsing rules as ConfigMap.Bool.
+func (s *ConfigsService) Bool(ctx context.Context, category, item string) (bool, error) {
+	cfg, err := s.Get(ctx, category)
+	if err != nil {
+		return false, err
+	}
+	v, ok := cfg.Bool(category, item)
+	if !ok {
+		return false, fmt.Errorf("ultimate: setting %q / %q not found", category, item)
+	}
+	return v, nil
+}
+
+// SetBool writes a boolean setting using the device's "Enabled"/"Disabled" convention.
+func (s *ConfigsService) SetBool(ctx context.Context, category, item string, value bool) error {
+	v := "Disabled"
+	if value {
+		v = "Enabled"
+	}
+	return s.Set(ctx, category, item, v)
+}
+
+// SetInt writes an integer setting.
+func (s *ConfigsService) SetInt(ctx context.Context, category, item string, value int) error {
+	return s.Set(ctx, category, item, strconv.Itoa(value))
 }
 
 // Apply updates multiple settings at once using a ConfigMap.

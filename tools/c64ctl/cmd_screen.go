@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"image/png"
+	"os"
+	"path/filepath"
 
 	"github.com/c64uploader/go-ultimate/c64"
 	"github.com/spf13/cobra"
@@ -102,16 +105,49 @@ character set is active.`,
 }
 
 func newSpritesCmd() *cobra.Command {
+	var outDir string
 
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "sprites",
-		Short: "Show all 8 hardware sprites",
+		Short: "Show all 8 hardware sprites or dump active sprites to PNG",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sprites, err := client.Debug.Sprites(context.Background())
 			if err != nil {
 				return err
 			}
+
+			if outDir != "" {
+				if err := os.MkdirAll(outDir, 0755); err != nil {
+					return fmt.Errorf("create directory %s: %w", outDir, err)
+				}
+				saved := 0
+				for _, s := range sprites {
+					if s.Enabled {
+						img, err := s.Image()
+						if err != nil {
+							return fmt.Errorf("render sprite %d: %w", s.Number, err)
+						}
+						filename := filepath.Join(outDir, fmt.Sprintf("sprite_%d.png", s.Number))
+						f, err := os.Create(filename)
+						if err != nil {
+							return fmt.Errorf("create %s: %w", filename, err)
+						}
+						if err := png.Encode(f, img); err != nil {
+							_ = f.Close()
+							return fmt.Errorf("encode %s: %w", filename, err)
+						}
+						_ = f.Close()
+						fmt.Printf("✓ Saved sprite %d to %s\n", s.Number, filename)
+						saved++
+					}
+				}
+				if saved == 0 {
+					fmt.Println("No active sprites to dump.")
+				}
+				return nil
+			}
+
 			for _, s := range sprites {
 				if s.Enabled {
 					fmt.Printf("Sprite %d: X=%3d Y=%3d Color=%d MC=%v XExp=%v YExp=%v\n",
@@ -121,4 +157,41 @@ func newSpritesCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVarP(&outDir, "out", "o", "", "Directory to save active sprite PNG images")
+	return cmd
+}
+
+func newScreenshotCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "screenshot <file.png>",
+		Short: "Grab a bitmap-mode screenshot and save as PNG",
+		Long: `Capture the current VIC-II bitmap display (standard or multicolor) and save
+it as a 320×200 PNG image. Requires the C64 to be in bitmap mode.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+			outFile := args[0]
+
+			img, err := client.Debug.Bitmap(ctx)
+			if err != nil {
+				return fmt.Errorf("screenshot: %w", err)
+			}
+
+			f, err := os.Create(outFile)
+			if err != nil {
+				return fmt.Errorf("create %s: %w", outFile, err)
+			}
+			defer func() { _ = f.Close() }()
+
+			if err := png.Encode(f, img); err != nil {
+				return fmt.Errorf("encode PNG: %w", err)
+			}
+
+			fmt.Printf("✓ Saved screenshot to %s\n", outFile)
+			return nil
+		},
+	}
+
+	return cmd
 }

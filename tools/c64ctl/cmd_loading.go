@@ -77,7 +77,7 @@ Use a .T64 file instead (a tape archive that c64ctl run can handle).`,
 				}
 				entry := entries[entryNum]
 				prg := entry.Program()
-				fmt.Printf("T64: %s — %s (%d bytes)\n",
+				fmt.Printf("T64: %s - %s (%d bytes)\n",
 					filepath.Base(path), entry.Name, prg.Size())
 				fmt.Printf("Running entry %d at $%04X...\n", entryNum, prg.LoadAddress())
 				return client.Runners.Run(context.Background(), prg)

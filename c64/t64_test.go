@@ -77,7 +77,7 @@ func TestParseT64_OK(t *testing.T) {
 	if prog.LoadAddress() != 0x0801 {
 		t.Errorf("Program() load = $%04X, want $0801", prog.LoadAddress())
 	}
-	// Size = len(Data) — wraps raw code with PRG header using StartAddr
+	// Size = len(Data) - wraps raw code with PRG header using StartAddr
 	if prog.Size() != 8 {
 		t.Errorf("Program() size = %d, want 8", prog.Size())
 	}
@@ -168,7 +168,7 @@ func TestParseT64_SkipFreeEntry(t *testing.T) {
 	binary.LittleEndian.PutUint16(hdr[36:38], 2)
 
 	rec1 := make([]byte, 32)
-	rec1[0] = 0 // free entry — should be skipped
+	rec1[0] = 0 // free entry - should be skipped
 
 	rec2 := make([]byte, 32)
 	rec2[0] = 1

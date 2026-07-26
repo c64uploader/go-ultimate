@@ -20,7 +20,7 @@ var opcodes = [256]opInfo{
 	0x39: {"AND", "absy", 3},
 	0x21: {"AND", "indx", 2},
 	0x31: {"AND", "indy", 2},
-	// ASL — accumulator variant uses mode "acc" (not "impl")
+	// ASL - accumulator variant uses mode "acc" (not "impl")
 	0x0A: {"ASL", "acc", 1},
 	0x06: {"ASL", "zp", 2},
 	0x16: {"ASL", "zpx", 2},
@@ -125,7 +125,7 @@ var opcodes = [256]opInfo{
 	0xB4: {"LDY", "zpx", 2},
 	0xAC: {"LDY", "abs", 3},
 	0xBC: {"LDY", "absx", 3},
-	// LSR — accumulator variant uses mode "acc"
+	// LSR - accumulator variant uses mode "acc"
 	0x4A: {"LSR", "acc", 1},
 	0x46: {"LSR", "zp", 2},
 	0x56: {"LSR", "zpx", 2},
@@ -150,13 +150,13 @@ var opcodes = [256]opInfo{
 	0x68: {"PLA", "impl", 1},
 	// PLP
 	0x28: {"PLP", "impl", 1},
-	// ROL — accumulator variant uses mode "acc"
+	// ROL - accumulator variant uses mode "acc"
 	0x2A: {"ROL", "acc", 1},
 	0x26: {"ROL", "zp", 2},
 	0x36: {"ROL", "zpx", 2},
 	0x2E: {"ROL", "abs", 3},
 	0x3E: {"ROL", "absx", 3},
-	// ROR — accumulator variant uses mode "acc"
+	// ROR - accumulator variant uses mode "acc"
 	0x6A: {"ROR", "acc", 1},
 	0x66: {"ROR", "zp", 2},
 	0x76: {"ROR", "zpx", 2},

@@ -1,6 +1,6 @@
 //go:build ignore
 
-// Run: go run examples/cartridge.go
+// Run: go run examples/cartridge_ram.go
 package main
 
 import (
@@ -43,6 +43,6 @@ message:
 	prog, _ := c64.Assemble(userAsm)
 	crt, _ := c64.NewRAMCartridge(c64.CRTNormal8K, "DEMO", prog)
 
-	// Upload and run — like plugging the cartridge in and resetting the C64.
+	// Upload and run - like plugging the cartridge in and resetting the C64.
 	_ = client.Runners.RunCRTBytes(ctx, crt)
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/c64uploader/go-ultimate/c64/codec"
 )
 
-// defaultLoadAddress is the PRG load address ($0801) — start of BASIC area on a stock C64.
+// defaultLoadAddress is the PRG load address ($0801) - start of BASIC area on a stock C64.
 const defaultLoadAddress = 0x0801
 
 // textEncoding selects the string encoding used by .text / .byte directives.
@@ -46,7 +46,9 @@ type parsedInst struct {
 	dataItems        []dataItem // set for .byte / .word / .text
 	dataWord         bool       // true -> .word (2 bytes each)
 	encoding         textEncoding
-	basicHeaderLabel string // for BASICHeader pseudo-directive: target label for the SYS
+	basicHeaderLabel    string // for BASICHeader pseudo-directive: target label for the SYS
+	cartridgeHeaderCold string // for CartridgeHeader directive: cold start label
+	cartridgeHeaderWarm string // for CartridgeHeader directive: warm start label
 }
 
 // encodeStringByte encodes one ASCII byte using the given text encoding.
@@ -83,20 +85,31 @@ func encodeStringByte(b byte, enc textEncoding) byte {
 	return b
 }
 
-// Assemble compiles 6502 source into a PRG Program.
+// Assemble compiles 6502 assembly source into a PRG Program.
 //
 // Supports standard 6502 mnemonics and addressing modes, labels, NAME = constants,
 // * = / .org origins, .byte/.word/.text data (with quoted strings), #< / #> byte
 // extraction, $/%/decimal literals, and ; comments.
 //
-// BASICHeader <label> emits the "10 SYS nnnn" at the current PC (normally after * = $0801).
-// This causes jump to the label, allowing machine code to start with RUN.
+// # Pseudo-Directives and Macros
 //
-// Text encoding (Kick Assembler compatible):
-//   - .encoding "screencode_upper" — screen codes, case folded (A-Z -> 1-26)
-//   - .encoding "screencode_mixed" — screen codes, mixed case (default)
-//   - .encoding "petscii_upper"    — PETSCII, case folded
-//   - .encoding "petscii_mixed"    — PETSCII, mixed case
+//   - BASICHeader <label> (or BASICHeader(label))
+//     Emits the 12-byte "10 SYS nnnn" BASIC header at current PC (typically * = $0801).
+//     Allows standard machine code programs to auto-run with BASIC RUN.
+//
+//   - CartridgeHeader <entry_label> [warm_start_label] (or CartridgeHeader(entry_label))
+//     Emits the 9-byte C64 cartridge header at current PC (typically * = $8000):
+//       - $8000-$8001: Cold start vector (executed on C64 power-on / hard reset) -> entry_label
+//       - $8002-$8003: Warm start vector (executed on NMI / RESTORE key press) -> warm_start_label
+//       - $8004-$8008: "CBM80" autostart signature bytes ($C3, $C2, $CD, $38, $30)
+//     If warm_start_label is omitted, it defaults to entry_label so pressing RESTORE restarts the program.
+//
+// # Text Encodings (.encoding)
+//
+//   - .encoding "screencode_upper" - Screen codes, case folded (A-Z -> 1-26)
+//   - .encoding "screencode_mixed" - Screen codes, mixed case (default)
+//   - .encoding "petscii_upper"    - PETSCII, case folded
+//   - .encoding "petscii_mixed"    - PETSCII, mixed case
 //
 // Zero-page vs absolute mode is chosen from backward label references;
 // forward references default to absolute. Multiple .org segments are
@@ -204,6 +217,40 @@ func Assemble(source string) (*Program, error) {
 				size:             12,
 			})
 			currentPC += 12
+			continue
+		}
+
+		if strings.HasPrefix(upperLine, "CARTRIDGEHEADER") {
+			argStr := ""
+			if idx := strings.Index(line, "("); idx != -1 {
+				end := strings.Index(line[idx:], ")")
+				if end != -1 {
+					argStr = strings.TrimSpace(line[idx+1 : idx+end])
+				}
+			} else {
+				parts := strings.Fields(line)
+				if len(parts) > 1 {
+					argStr = strings.TrimSpace(strings.Join(parts[1:], " "))
+				}
+			}
+			if argStr == "" {
+				return nil, fmt.Errorf("line %d: CartridgeHeader requires at least one label\n  %s", lineNo, rawLine)
+			}
+			args := strings.Split(argStr, ",")
+			cold := strings.TrimSpace(args[0])
+			warm := cold
+			if len(args) > 1 && strings.TrimSpace(args[1]) != "" {
+				warm = strings.TrimSpace(args[1])
+			}
+			instructions = append(instructions, parsedInst{
+				pc:                  currentPC,
+				lineNo:              lineNo,
+				sourceLine:          rawLine,
+				cartridgeHeaderCold: cold,
+				cartridgeHeaderWarm: warm,
+				size:                9,
+			})
+			currentPC += 9
 			continue
 		}
 
@@ -356,6 +403,25 @@ func Assemble(source string) (*Program, error) {
 			stub := basicHeader(addr)
 			prg.Write(stub)
 			emitPC += uint16(len(stub))
+			continue
+		}
+
+		// Emits the 9-byte C64 cartridge header (.word cold, .word warm, "CBM80" signature).
+		if inst.cartridgeHeaderCold != "" {
+			coldAddr, err := resolveExpr(inst.cartridgeHeaderCold, labels, "")
+			if err != nil {
+				return nil, fmt.Errorf("line %d: %w\n  %s", inst.lineNo, err, inst.sourceLine)
+			}
+			warmAddr, err := resolveExpr(inst.cartridgeHeaderWarm, labels, "")
+			if err != nil {
+				return nil, fmt.Errorf("line %d: %w\n  %s", inst.lineNo, err, inst.sourceLine)
+			}
+			prg.WriteByte(byte(coldAddr))
+			prg.WriteByte(byte(coldAddr >> 8))
+			prg.WriteByte(byte(warmAddr))
+			prg.WriteByte(byte(warmAddr >> 8))
+			prg.Write([]byte{0xC3, 0xC2, 0xCD, 0x38, 0x30}) // "CBM80" signature
+			emitPC += 9
 			continue
 		}
 
@@ -516,7 +582,7 @@ func indexedAddressingHint(expr string, labels map[string]uint16) string {
 		}
 	default:
 		if len(reg) == 1 && ((reg[0] >= 'a' && reg[0] <= 'z') || (reg[0] >= 'A' && reg[0] <= 'Z')) {
-			return fmt.Sprintf(" (operand %q looks like indexed addressing — use ,X or ,Y)", expr)
+			return fmt.Sprintf(" (operand %q looks like indexed addressing - use ,X or ,Y)", expr)
 		}
 	}
 	return ""

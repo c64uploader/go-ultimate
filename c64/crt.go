@@ -157,7 +157,10 @@ func (c *Cartridge) Bytes() ([]byte, error) {
 }
 
 // NewRawCartridge wraps raw ROM bytes into a .CRT file of the specified type.
-// It automatically splits/pads and handles load addresses appropriately.
+//
+// The provided romData must already contain a valid C64 cartridge header (such as the
+// "CBM80" signature string at $8004-$8008) and vectors needed by hardware to boot.
+// It automatically splits/pads the payload and assigns load addresses appropriately.
 func NewRawCartridge(cartType CartridgeType, name string, romData []byte) ([]byte, error) {
 	var exrom, game byte
 	switch cartType {
@@ -250,172 +253,6 @@ func NewRawCartridge(cartType CartridgeType, name string, romData []byte) ([]byt
 	return c.Bytes()
 }
 
-// NewXIPCartridge builds an Execute-In-Place (XIP) cartridge from a compiled Program.
-//
-// In an XIP cartridge, your code runs directly from the cartridge ROM chip itself, 
-// rather than being copied into the Commodore 64's RAM. 
-//
-// Because the C64 CPU executes code directly from the cartridge ROM, you must compile
-// your assembly program to target the correct ROM memory addresses:
-//
-// - For Normal 8K/16K cartridges, the ROM is mapped starting at $8000. The cartridge's 
-//   automatic startup code (bootstrap) takes the first 64 bytes ($8000-$803F) as reserved space.
-//   Therefore, you must compile your program starting at $8040 (e.g., using '* = $8040' in your assembly).
-//
-// - For Ultimax cartridges, the ROM is mapped at $E000-$FFFF (and also $8000-$9FFF for 16K).
-//   The startup code takes the first 64 bytes ($E000-$E03F), and the system vectors take $FFFA-$FFFF.
-//   Therefore, your program must target either $8000-$9FFF or $E040-$FFFA.
-//
-// If your program is compiled for RAM (like the default $0801 BASIC start), use
-// NewRAMCartridge instead, which automatically copies your program to RAM at startup.
-func NewXIPCartridge(cartType CartridgeType, name string, prg *Program) ([]byte, error) {
-	if prg == nil || prg.Size() == 0 {
-		return nil, fmt.Errorf("empty program")
-	}
-
-	const bootstrapReservedSize = 64
-
-	var bootProg *Program
-	var err error
-	var userOffset int
-	var romSize int
-
-	switch cartType {
-	case CRTNormal8K, CRTNormal16K:
-		bootstrap := fmt.Sprintf(`
-* = $8000
-    .word cold_start
-    .word warm_start
-    .byte $C3, $C2, $CD, $38, $30 ; "CBM80" signature
-cold_start:
-warm_start:
-    sei
-    cld
-    jsr $ff84   ; IOINIT: Initialize CIA chips
-    jsr $ff87   ; RAMTAS: Initialize RAM/ZP
-    jsr $ff8a   ; RESTOR: Restore Kernal vectors
-    jsr $ff81   ; CINT: Initialize screen/VIC-II
-    cli
-    jmp $%04X
-`, prg.LoadAddress())
-
-		bootProg, err = Assemble(bootstrap)
-		if err != nil {
-			return nil, fmt.Errorf("failed to assemble cartridge bootstrap: %w", err)
-		}
-
-		if bootProg.Size() > bootstrapReservedSize {
-			return nil, fmt.Errorf("bootstrap code size %d exceeds reserved space %d", bootProg.Size(), bootstrapReservedSize)
-		}
-
-		firstFree := uint16(0x8000 + bootstrapReservedSize)
-		if prg.LoadAddress() < firstFree {
-			return nil, fmt.Errorf("program load address $%04X overlaps with bootstrap code (requires at least $%04X)",
-				prg.LoadAddress(), firstFree)
-		}
-
-		var maxAddr uint16
-		if cartType == CRTNormal8K {
-			romSize = 8192
-			maxAddr = 0xA000
-		} else {
-			romSize = 16384
-			maxAddr = 0xC000
-		}
-
-		if uint32(prg.LoadAddress())+uint32(prg.Size()) > uint32(maxAddr) {
-			return nil, fmt.Errorf("program size %d at $%04X exceeds cartridge limit $%04X",
-				prg.Size(), prg.LoadAddress(), maxAddr)
-		}
-
-		userOffset = int(prg.LoadAddress() - 0x8000)
-
-	case CRTUltimax:
-		bootstrap := fmt.Sprintf(`
-* = $E000
-cold_start:
-    sei
-    cld
-    ldx #$ff
-    txs
-    lda #$1b
-    sta $d011
-    lda #$08
-    sta $d016
-    cli
-    jmp $%04X
-dummy_nmi:
-dummy_irq:
-    rti
-`, prg.LoadAddress())
-
-		bootProg, err = Assemble(bootstrap)
-		if err != nil {
-			return nil, fmt.Errorf("failed to assemble cartridge bootstrap: %w", err)
-		}
-
-		if bootProg.Size() > bootstrapReservedSize {
-			return nil, fmt.Errorf("bootstrap code size %d exceeds reserved space %d", bootProg.Size(), bootstrapReservedSize)
-		}
-
-		// Ultimax has two valid ROM mapping regions: $8000-$9FFF (16K Ultimax only) and $E000-$FFFA.
-		if prg.LoadAddress() >= 0x8000 && prg.LoadAddress() < 0xA000 {
-			romSize = 16384
-			if uint32(prg.LoadAddress())+uint32(prg.Size()) > 0xA000 {
-				return nil, fmt.Errorf("program size %d at $%04X exceeds cartridge limit $A000",
-					prg.Size(), prg.LoadAddress())
-			}
-			userOffset = int(prg.LoadAddress() - 0x8000)
-		} else if prg.LoadAddress() >= 0xE000 {
-			firstFree := uint16(0xE000 + bootstrapReservedSize)
-			if prg.LoadAddress() < firstFree {
-				return nil, fmt.Errorf("program load address $%04X overlaps with bootstrap code (requires at least $%04X)",
-					prg.LoadAddress(), firstFree)
-			}
-			if uint32(prg.LoadAddress())+uint32(prg.Size()) > 0xFFFA {
-				return nil, fmt.Errorf("program size %d at $%04X overlaps with cartridge vectors (must end before $FFFA)",
-					prg.Size(), prg.LoadAddress())
-			}
-			romSize = 8192
-			userOffset = int(prg.LoadAddress() - 0xE000)
-		} else {
-			return nil, fmt.Errorf("invalid load address $%04X for Ultimax cartridge (must be in $8000-$9FFF or $E040-$FFFA)",
-				prg.LoadAddress())
-		}
-
-	default:
-		return nil, fmt.Errorf("invalid cartridge type for XIP: %v", cartType)
-	}
-
-	romData := make([]byte, romSize)
-	for i := range romData {
-		romData[i] = 0xFF
-	}
-
-	if cartType == CRTUltimax {
-		// Ultimax vectors at $FFFA-$FFFF:
-		// $FFFA-$FFFB: dummy_nmi / dummy_irq address ($E013)
-		// $FFFC-$FFFD: cold_start address ($E000)
-		// $FFFE-$FFFF: dummy_nmi / dummy_irq address ($E013)
-		vectorsBytes := []byte{0x13, 0xE0, 0x00, 0xE0, 0x13, 0xE0}
-
-		if romSize == 16384 {
-			// For 16K Ultimax, the bootstrap is at the start of the second 8K bank.
-			copy(romData[8192:], bootProg.Code())
-			copy(romData[8192+0x1FFA:], vectorsBytes)
-		} else {
-			copy(romData, bootProg.Code())
-			copy(romData[0x1FFA:], vectorsBytes)
-		}
-	} else {
-		copy(romData, bootProg.Code())
-	}
-
-	copy(romData[userOffset:], prg.Code())
-
-	return NewRawCartridge(cartType, name, romData)
-}
-
 // parseSYSEntryPoint parses the SYS address from the first BASIC line if present.
 func parseSYSEntryPoint(code []byte) (uint16, bool) {
 	if len(code) < 6 {
@@ -490,9 +327,15 @@ func hasBASICHeader(code []byte) bool {
 }
 
 // NewRAMCartridge builds a cartridge that relocates a standard PRG program into RAM at startup.
+//
+// At boot, an injected ROM bootstrap copies your program bytes directly into RAM and jumps to the entry point.
+//
 // By default, if the program's load address is $0801 (standard BASIC start), the entry point is
-// parsed from the BASIC SYS header, defaulting to $080d. Otherwise, the entry point defaults to the load address.
-// You can optionally pass a custom entry point address as the last argument.
+// parsed from the BASIC SYS header, defaulting to $080D. Otherwise, the entry point defaults to the load address.
+// You can optionally pass an explicit entryPoint address to override auto-detection.
+//
+// Note: CRTUltimax is not supported for RAM relocation because Ultimax hardware
+// disables main C64 RAM ($1000-$CFFF), making RAM copying impossible. Use NewXIPCartridge instead.
 func NewRAMCartridge(cartType CartridgeType, name string, prg *Program, entryPoint ...uint16) ([]byte, error) {
 	if prg == nil || prg.Size() == 0 {
 		return nil, fmt.Errorf("empty program")
@@ -531,12 +374,9 @@ func NewRAMCartridge(cartType CartridgeType, name string, prg *Program, entryPoi
 	// Zero-page locations $fb-$fe are standard temporary pointers on C64.
 	bootstrapAsm := fmt.Sprintf(`
 * = $8000
-    .word cold_start
-    .word warm_start
-    .byte $C3, $C2, $CD, $38, $30 ; "CBM80" signature
+    CartridgeHeader(cold_start)
 
 cold_start:
-warm_start:
     sei
     cld
     jsr $ff84   ; IOINIT: Initialize CIA chips

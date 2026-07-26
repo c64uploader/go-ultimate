@@ -33,22 +33,15 @@ func defaultCacheDir() string {
 }
 
 // loadConfigFile loads configuration from customPath or default search locations.
-// Search order if customPath is empty:
-// 1. ./.c64ctl.json (current directory)
-// 2. <UserConfigDir>/c64ctl/config.json
+// Default location if customPath is empty:
+// <UserConfigDir>/c64ctl/config.json
 func loadConfigFile(customPath string) (*Config, string, error) {
 	var targetPath string
 
 	if customPath != "" {
 		targetPath = customPath
 	} else {
-		// Check local directory
-		localPath := "./.c64ctl.json"
-		if _, err := os.Stat(localPath); err == nil {
-			targetPath = localPath
-		} else {
-			targetPath = filepath.Join(defaultConfigDir(), "config.json")
-		}
+		targetPath = filepath.Join(defaultConfigDir(), "config.json")
 	}
 
 	data, err := os.ReadFile(targetPath)

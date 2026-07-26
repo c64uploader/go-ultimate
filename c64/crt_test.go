@@ -108,59 +108,7 @@ func TestNewRawCartridge_Ultimax16K(t *testing.T) {
 	}
 }
 
-func TestNewXIPCartridge(t *testing.T) {
-	// User assembly that sets border color and loops
-	userAsm := `
-	* = $8040
-	lda #$02
-	sta $d020
-loop:
-	jmp loop
-`
-	prog, err := Assemble(userAsm)
-	if err != nil {
-		t.Fatalf("Failed to assemble test program: %v", err)
-	}
 
-	crt, err := NewXIPCartridge(CRTNormal8K, "XIP_TEST", prog)
-	if err != nil {
-		t.Fatalf("NewXIPCartridge failed: %v", err)
-	}
-
-	expectedLen := 64 + 16 + 8192
-	if len(crt) != expectedLen {
-		t.Fatalf("expected len %d, got %d", expectedLen, len(crt))
-	}
-
-	// The payload is mapped at $8000
-	payload := crt[80:]
-	// The RESET vector at $8000 should point to cold_start ($8009)
-	resetVector := uint16(payload[0]) | uint16(payload[1])<<8
-	if resetVector != 0x8009 {
-		t.Errorf("expected RESET vector $8009, got $%04X", resetVector)
-	}
-	// CBM80 signature
-	sig := payload[4:9]
-	if !bytes.Equal(sig, []byte{0xC3, 0xC2, 0xCD, 0x38, 0x30}) {
-		t.Errorf("expected CBM80 signature, got %v", sig)
-	}
-
-	// Verify bootstrap jump target points to $8040
-	jmpOp := payload[24]
-	jmpTarget := uint16(payload[25]) | uint16(payload[26])<<8
-	if jmpOp != 0x4C || jmpTarget != 0x8040 {
-		t.Errorf("expected bootstrap jump to $8040 (0x4C, 0x40, 0x80), got 0x%02X, $%04X", jmpOp, jmpTarget)
-	}
-
-	// Test overlap detection
-	badProg, err := Assemble("* = $8030\n nop")
-	if err == nil {
-		_, err = NewXIPCartridge(CRTNormal8K, "BAD", badProg)
-		if err == nil {
-			t.Error("Expected error for overlapping load address")
-		}
-	}
-}
 
 func TestNewRAMCartridge(t *testing.T) {
 	// Build a standard program compiled at $0801 with BASICHeader

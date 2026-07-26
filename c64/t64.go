@@ -71,7 +71,7 @@ func ParseT64(data []byte) ([]T64Entry, error) {
 
 		entryType := rec[0]
 		if entryType == 0 {
-			// Free entry — skip
+			// Free entry - skip
 			continue
 		}
 

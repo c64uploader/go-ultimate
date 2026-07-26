@@ -15,6 +15,12 @@ export C64U_PASSWORD="your_password" # Optional: Password if set on the device
 make e2e
 ```
 
+By default, `make e2e` runs in verbose mode (`-v`) to show active test execution. You can filter which tests to run using `TEST_RUN=<pattern>`:
+
+```bash
+make e2e TEST_RUN=TestE2E_KeyboardPress
+```
+
 Some test cases require manual verification through keyboard or joystick input.
 Some tests require an Ethernet connection rather than WiFi.
 

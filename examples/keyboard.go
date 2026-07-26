@@ -22,7 +22,12 @@ func main() {
 	_ = client.Keyboard.Type(ctx, "PRINT \"HELLO\"\n")
 	time.Sleep(2 * time.Second)
 
-	// 2. Press simulates holding keys down via KERNAL decode hooks and CIA #1 register overrides.
+	// 2. TypeWithOptions with ultimate.Literal() preserves exact letter casing
+	// (differentiating lowercase 'a' from uppercase 'A' when C64 is in lower/upper mode).
+	_ = client.Keyboard.Type(ctx, "Hello World\n", ultimate.Literal())
+	time.Sleep(2 * time.Second)
+
+	// 3. Press simulates holding keys down via KERNAL decode hooks and CIA #1 register overrides.
 	// WARNING: Best-effort feature. Will fail in games or software that bypass KERNAL or use custom IRQ/input loops.
 	_ = client.Keyboard.Press(ctx, c64.KeyRunStop, c64.KeyLeftShift, c64.KeyA)
 }

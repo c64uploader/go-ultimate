@@ -33,7 +33,7 @@ func main() {
 	time.Sleep(2 * time.Second)
 	_ = client.Machine.MenuButton(ctx)
 
-	// client.Machine.Reboot(ctx)   // restart firmware — disruptive
+	// client.Machine.Reboot(ctx)   // restart firmware - disruptive
 	// client.Machine.PowerOff(ctx) // powers off the device
 
 	// DMA memory access
